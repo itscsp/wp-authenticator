@@ -1,10 +1,10 @@
 <?php
 /**
  * Plugin Name: WP Authenticator
- * Plugin URI: https://example.com/wp-authenticator
+ * Plugin URI: https://github.com/itscsp/wp-authenticator
  * Description: Enhanced user login and authentication functionality for WordPress with custom login forms, security features, and user management.
  * Version: 1.0.0
- * Author: Chethan Spoojary
+ * Author: Chethan S poojary
  * License: GPL v2 or later
  * Text Domain: wp-authenticator
  */
@@ -58,6 +58,7 @@ class WP_Authenticator {
         require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-api-endpoints.php';
         require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-security-handler.php';
         require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-admin-settings.php';
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-otp-handler.php';
     }
     
     private function init_components() {
@@ -185,6 +186,60 @@ class WP_Authenticator {
             'callback' => array($this, 'api_security_stats'),
             'permission_callback' => array($this, 'check_admin_permission'),
         ));
+        
+        // OTP endpoints
+        register_rest_route('wp-auth/v1', '/verify-otp', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'api_verify_otp'),
+            'permission_callback' => '__return_true',
+            'args' => array(
+                'email' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_email',
+                    'validate_callback' => function($param) {
+                        return is_email($param);
+                    }
+                ),
+                'otp' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+            ),
+        ));
+        
+        register_rest_route('wp-auth/v1', '/resend-otp', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'api_resend_otp'),
+            'permission_callback' => '__return_true',
+            'args' => array(
+                'email' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_email',
+                    'validate_callback' => function($param) {
+                        return is_email($param);
+                    }
+                ),
+            ),
+        ));
+        
+        register_rest_route('wp-auth/v1', '/otp-status', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'api_otp_status'),
+            'permission_callback' => '__return_true',
+            'args' => array(
+                'email' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_email',
+                    'validate_callback' => function($param) {
+                        return is_email($param);
+                    }
+                ),
+            ),
+        ));
     }
     
     /**
@@ -244,7 +299,7 @@ class WP_Authenticator {
     }
     
     /**
-     * API Register endpoint
+     * API Register endpoint - Now with OTP verification
      */
     public function api_register($request) {
         if (!get_option('users_can_register')) {
@@ -294,69 +349,37 @@ class WP_Authenticator {
             );
         }
         
+        // Prepare user data for OTP verification
         $user_data = array(
-            'user_login' => $username,
-            'user_email' => $email,
-            'user_pass' => $password,
+            'username' => $username,
+            'email' => $email,
+            'password' => $password,
             'first_name' => $first_name,
-            'last_name' => $last_name,
-            'display_name' => trim($first_name . ' ' . $last_name),
-            'role' => get_option('default_role', 'subscriber')
+            'last_name' => $last_name
         );
         
-        $user_id = wp_insert_user($user_data);
+        // Generate and send OTP
+        $otp_handler = new WP_Auth_OTP_Handler();
+        $otp_result = $otp_handler->generate_otp($email, $user_data);
         
-        if (is_wp_error($user_id)) {
+        if ($otp_result['success']) {
+            return array(
+                'success' => true,
+                'message' => __('Registration initiated. Please check your email for the OTP verification code.', 'wp-authenticator'),
+                'data' => array(
+                    'email' => $email,
+                    'otp_expires' => $otp_result['expires'],
+                    'requires_verification' => true,
+                    'next_step' => 'Please call /wp-json/wp-auth/v1/verify-otp with your email and OTP code'
+                )
+            );
+        } else {
             return new WP_Error(
-                'registration_failed',
-                $user_id->get_error_message(),
-                array('status' => 400)
+                'otp_send_failed',
+                __('Failed to send verification email. Please try again.', 'wp-authenticator'),
+                array('status' => 500)
             );
         }
-        
-        // Send notification email
-        wp_new_user_notification($user_id, null, 'both');
-        
-        // Auto-login if enabled
-        if (get_option('wp_auth_auto_login_after_register', 'yes') === 'yes') {
-            $creds = array(
-                'user_login' => $username,
-                'user_password' => $password,
-                'remember' => true
-            );
-            
-            $user = wp_signon($creds, false);
-            
-            if (!is_wp_error($user)) {
-                // Generate JWT token using the same handler as login
-                $jwt_handler = new WP_Auth_JWT_Handler();
-                $token_data = $jwt_handler->generate_token($user->ID);
-                
-                return array(
-                    'success' => true,
-                    'message' => __('Registration and login successful', 'wp-authenticator'),
-                    'data' => array(
-                        'user_id' => $user->ID,
-                        'username' => $user->user_login,
-                        'email' => $user->user_email,
-                        'display_name' => $user->display_name,
-                        'token' => $token_data['token'],
-                        'refresh_token' => $token_data['refresh_token'],
-                        'expires' => $token_data['expires']
-                    )
-                );
-            }
-        }
-        
-        return array(
-            'success' => true,
-            'message' => __('Registration successful', 'wp-authenticator'),
-            'data' => array(
-                'user_id' => $user_id,
-                'username' => $username,
-                'email' => $email
-            )
-        );
     }
     
     /**
@@ -604,6 +627,69 @@ class WP_Authenticator {
         add_option('wp_auth_enable_security', 'yes');
         add_option('wp_auth_max_login_attempts', 5);
         add_option('wp_auth_lockout_duration', 15);
+    }
+    
+    /**
+     * Verify OTP endpoint
+     */
+    public function api_verify_otp($request) {
+        $email = $request->get_param('email');
+        $otp = $request->get_param('otp');
+        
+        $otp_handler = new WP_Auth_OTP_Handler();
+        $result = $otp_handler->verify_otp($email, $otp);
+        
+        if ($result['success']) {
+            return $result;
+        } else {
+            return new WP_Error(
+                'otp_verification_failed',
+                $result['message'],
+                array('status' => 400)
+            );
+        }
+    }
+    
+    /**
+     * Resend OTP endpoint
+     */
+    public function api_resend_otp($request) {
+        $email = $request->get_param('email');
+        
+        $otp_handler = new WP_Auth_OTP_Handler();
+        $result = $otp_handler->resend_otp($email);
+        
+        if ($result['success']) {
+            return array(
+                'success' => true,
+                'message' => __('OTP has been resent to your email address.', 'wp-authenticator'),
+                'data' => array(
+                    'email' => $email,
+                    'otp_expires' => $result['expires']
+                )
+            );
+        } else {
+            return new WP_Error(
+                'otp_resend_failed',
+                $result['message'],
+                array('status' => 400)
+            );
+        }
+    }
+    
+    /**
+     * OTP status endpoint
+     */
+    public function api_otp_status($request) {
+        $email = $request->get_param('email');
+        
+        $otp_handler = new WP_Auth_OTP_Handler();
+        $status = $otp_handler->get_otp_status($email);
+        
+        return array(
+            'success' => true,
+            'data' => $status
+        );
     }
 }
 
