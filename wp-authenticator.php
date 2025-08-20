@@ -328,9 +328,9 @@ class WP_Authenticator {
             $user = wp_signon($creds, false);
             
             if (!is_wp_error($user)) {
-                $token = wp_generate_password(32, false);
-                update_user_meta($user->ID, 'wp_auth_token', $token);
-                update_user_meta($user->ID, 'wp_auth_token_expires', time() + (24 * HOUR_IN_SECONDS));
+                // Generate JWT token using the same handler as login
+                $jwt_handler = new WP_Auth_JWT_Handler();
+                $token_data = $jwt_handler->generate_token($user->ID);
                 
                 return array(
                     'success' => true,
@@ -340,8 +340,9 @@ class WP_Authenticator {
                         'username' => $user->user_login,
                         'email' => $user->user_email,
                         'display_name' => $user->display_name,
-                        'token' => $token,
-                        'expires' => time() + (24 * HOUR_IN_SECONDS)
+                        'token' => $token_data['token'],
+                        'refresh_token' => $token_data['refresh_token'],
+                        'expires' => $token_data['expires']
                     )
                 );
             }

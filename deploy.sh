@@ -10,7 +10,7 @@ mkdir -p dist/wp-authenticator
 
 # Copy plugin files (excluding development files)
 echo "📁 Copying plugin files..."
-cp -r includes/ dist/wp-authenticator/
+cp -r includes/ dist/wp-authenticator/includes/
 cp wp-authenticator.php dist/wp-authenticator/
 cp README.md dist/wp-authenticator/
 cp SECURITY.md dist/wp-authenticator/
@@ -19,7 +19,7 @@ cp composer.json dist/wp-authenticator/
 
 # Copy examples if they exist
 if [ -d "examples/" ]; then
-    cp -r examples/ dist/wp-authenticator/
+    cp -r examples/ dist/wp-authenticator/examples/
 fi
 
 # Install production dependencies
