@@ -1,13 +1,33 @@
-# WP Authenticator Plugin
+# WP Authenticator - JWT Authentication Plugin
 
-A comprehensive WordPress plugin that provides REST API endpoints for user authentication, registration, and profile management with enhanced security features.
+A WordPress plugin that provides secure JWT-based authentication using the industry-standard Firebase JWT library.
 
-## Features
+## 🚀 Features
 
-- Complete REST API for user authentication
-- User registration and profile management
-- Password reset functionality
-- Token-based authentication
+- **Production-Ready JWT**: Uses Firebase JWT library (firebase/php-jwt)
+- **Secure Authentication**: HTTPS enforcement, token blacklisting, comprehensive validation
+- **REST API Endpoints**: Complete set of authentication endpoints
+- **Token Management**: Access tokens, refresh tokens, automatic expiration
+- **Security Features**: IP blocking, rate limiting, failed login tracking
+- **Admin Interface**: Settings panel and API documentation
+
+## 📋 Requirements
+
+- PHP 7.4 or higher
+- WordPress 5.0 or higher
+- Composer (for dependency management)
+- HTTPS (strongly recommended for production)
+
+## 🔧 Installation
+
+### 1. Install Dependencies
+
+```bash
+cd wp-content/plugins/wp-authenticator
+composer install
+```
+
+This will install the Firebase JWT library and other dependencies.
 - Security features (rate limiting, IP blocking)
 - Failed login attempt tracking
 - Admin dashboard with security statistics

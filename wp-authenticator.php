@@ -14,10 +14,15 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-// Define plugin constants
+// Plugin constants
 define('WP_AUTHENTICATOR_VERSION', '1.0.0');
-define('WP_AUTHENTICATOR_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('WP_AUTHENTICATOR_PLUGIN_PATH', plugin_dir_path(__FILE__));
+define('WP_AUTHENTICATOR_PLUGIN_URL', plugin_dir_url(__FILE__));
+
+// Load Composer autoloader for Firebase JWT
+if (file_exists(WP_AUTHENTICATOR_PLUGIN_PATH . 'vendor/autoload.php')) {
+    require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'vendor/autoload.php';
+}
 
 // Main plugin class
 class WP_Authenticator {
@@ -49,6 +54,7 @@ class WP_Authenticator {
     }
     
     private function include_files() {
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-jwt-handler.php';
         require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-api-endpoints.php';
         require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-security-handler.php';
         require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-admin-settings.php';
@@ -123,11 +129,11 @@ class WP_Authenticator {
             ),
         ));
         
-        // Logout endpoint
+                // Logout endpoint
         register_rest_route('wp-auth/v1', '/logout', array(
             'methods' => 'POST',
             'callback' => array($this, 'api_logout'),
-            'permission_callback' => 'is_user_logged_in',
+            'permission_callback' => array($this, 'check_user_permission'),
         ));
         
         // User profile endpoint
@@ -208,6 +214,9 @@ class WP_Authenticator {
         $user = wp_signon($creds, false);
         
         if (is_wp_error($user)) {
+            // Log failed login attempt
+            $security_handler->handle_failed_login($_SERVER['REMOTE_ADDR'], $username);
+            
             return new WP_Error(
                 'login_failed',
                 $user->get_error_message(),
@@ -215,10 +224,9 @@ class WP_Authenticator {
             );
         }
         
-        // Generate authentication token
-        $token = wp_generate_password(32, false);
-        update_user_meta($user->ID, 'wp_auth_token', $token);
-        update_user_meta($user->ID, 'wp_auth_token_expires', time() + (24 * HOUR_IN_SECONDS));
+        // Generate JWT token
+        $jwt_handler = new WP_Auth_JWT_Handler();
+        $token_data = $jwt_handler->generate_token($user->ID);
         
         return array(
             'success' => true,
@@ -228,8 +236,9 @@ class WP_Authenticator {
                 'username' => $user->user_login,
                 'email' => $user->user_email,
                 'display_name' => $user->display_name,
-                'token' => $token,
-                'expires' => time() + (24 * HOUR_IN_SECONDS)
+                'token' => $token_data['token'],
+                'refresh_token' => $token_data['refresh_token'],
+                'expires' => $token_data['expires']
             )
         );
     }
@@ -350,20 +359,36 @@ class WP_Authenticator {
     }
     
     /**
-     * API Logout endpoint
+     * API Logout endpoint - Blacklists JWT token
      */
     public function api_logout($request) {
-        $user_id = get_current_user_id();
+        // Get the JWT token from the Authorization header
+        $jwt_handler = new WP_Auth_JWT_Handler();
+        $token = $jwt_handler->get_token_from_header();
         
-        // Clear authentication token
-        delete_user_meta($user_id, 'wp_auth_token');
-        delete_user_meta($user_id, 'wp_auth_token_expires');
+        if ($token) {
+            // Blacklist the current token
+            $jwt_handler->blacklist_token($token);
+        }
         
+        // Also check for token in request body (optional)
+        $body_token = $request->get_param('token');
+        if ($body_token && $body_token !== $token) {
+            $jwt_handler->blacklist_token($body_token);
+        }
+        
+        // Blacklist refresh token if provided
+        $refresh_token = $request->get_param('refresh_token');
+        if ($refresh_token) {
+            $jwt_handler->blacklist_token($refresh_token);
+        }
+        
+        // Clear WordPress user session
         wp_logout();
         
         return array(
             'success' => true,
-            'message' => __('Logout successful', 'wp-authenticator')
+            'message' => __('Logout successful. Token has been revoked.', 'wp-authenticator')
         );
     }
     
@@ -465,24 +490,29 @@ class WP_Authenticator {
      * API Validate Token endpoint
      */
     public function api_validate_token($request) {
-        $user_id = get_current_user_id();
-        $stored_token = get_user_meta($user_id, 'wp_auth_token', true);
-        $token_expires = get_user_meta($user_id, 'wp_auth_token_expires', true);
+        $token = $request->get_param('token');
         
-        if (!$stored_token || !$token_expires || time() > $token_expires) {
+        if (!$token) {
             return new WP_Error(
-                'invalid_token',
-                __('Invalid or expired token.', 'wp-authenticator'),
-                array('status' => 401)
+                'missing_token',
+                __('Token is required.', 'wp-authenticator'),
+                array('status' => 400)
             );
+        }
+        
+        $jwt_handler = new WP_Auth_JWT_Handler();
+        $decoded = $jwt_handler->validate_token($token);
+        
+        if (is_wp_error($decoded)) {
+            return $decoded;
         }
         
         return array(
             'success' => true,
             'message' => __('Token is valid', 'wp-authenticator'),
             'data' => array(
-                'user_id' => $user_id,
-                'expires' => $token_expires
+                'user_id' => $decoded['user_id'],
+                'expires' => $decoded['exp']
             )
         );
     }

@@ -266,20 +266,27 @@ class WP_Auth_API_Endpoints {
      * Refresh token endpoint
      */
     public function refresh_token($request) {
-        $user_id = get_current_user_id();
+        $refresh_token = $request->get_param('refresh_token');
         
-        // Generate new token
-        $token = wp_generate_password(32, false);
-        update_user_meta($user_id, 'wp_auth_token', $token);
-        update_user_meta($user_id, 'wp_auth_token_expires', time() + (24 * HOUR_IN_SECONDS));
+        if (!$refresh_token) {
+            return new WP_Error(
+                'missing_refresh_token',
+                __('Refresh token is required.', 'wp-authenticator'),
+                array('status' => 400)
+            );
+        }
+        
+        $jwt_handler = new WP_Auth_JWT_Handler();
+        $result = $jwt_handler->refresh_token($refresh_token);
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
         
         return array(
             'success' => true,
             'message' => __('Token refreshed successfully.', 'wp-authenticator'),
-            'data' => array(
-                'token' => $token,
-                'expires' => time() + (24 * HOUR_IN_SECONDS)
-            )
+            'data' => $result
         );
     }
     
@@ -388,34 +395,16 @@ class WP_Auth_API_Endpoints {
             return $result;
         }
         
-        // Find user by token
-        $users = get_users(array(
-            'meta_key' => 'wp_auth_token',
-            'meta_value' => $token,
-            'number' => 1
-        ));
+        // Validate JWT token
+        $jwt_handler = new WP_Auth_JWT_Handler();
+        $decoded = $jwt_handler->validate_token($token);
         
-        if (empty($users)) {
-            return new WP_Error(
-                'invalid_token',
-                __('Invalid authentication token.', 'wp-authenticator'),
-                array('status' => 401)
-            );
-        }
-        
-        $user = $users[0];
-        $token_expires = get_user_meta($user->ID, 'wp_auth_token_expires', true);
-        
-        if (!$token_expires || time() > $token_expires) {
-            return new WP_Error(
-                'expired_token',
-                __('Authentication token has expired.', 'wp-authenticator'),
-                array('status' => 401)
-            );
+        if (is_wp_error($decoded)) {
+            return $decoded;
         }
         
         // Set current user
-        wp_set_current_user($user->ID);
+        wp_set_current_user($decoded['user_id']);
         
         return true;
     }

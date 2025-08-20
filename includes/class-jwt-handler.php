@@ -1,8 +1,11 @@
 <?php
 /**
- * JWT Handler Class
+ * JWT Handler Class using Firebase JWT Library
  * 
- * Handles JWT token generation, validation, and management
+ * This implementation uses the well-maintained Firebase JWT library
+ * for production-ready JWT token handling.
+ * 
+ * Requires: firebase/php-jwt via Composer
  */
 
 // Prevent direct access
@@ -10,176 +13,167 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
+use Firebase\JWT\ExpiredException;
+use Firebase\JWT\SignatureInvalidException;
+use Firebase\JWT\BeforeValidException;
+
 class WP_Auth_JWT_Handler {
     
     private $secret_key;
     private $algorithm = 'HS256';
-    private $expiration_time = 86400; // 24 hours in seconds
+    private $expiration_time = 3600; // 1 hour
+    private $refresh_expiration_time = 604800; // 7 days
+    private $issuer;
+    private $audience;
     
     public function __construct() {
-        $this->secret_key = $this->get_secret_key();
-    }
-    
-    /**
-     * Get or generate secret key for JWT
-     */
-    private function get_secret_key() {
+        // Get or generate secret key
         $secret = get_option('wp_auth_jwt_secret');
         
-        if (empty($secret)) {
-            // Generate a secure random secret key
+        if (!$secret) {
+            // Generate a cryptographically secure secret
             $secret = wp_generate_password(64, true, true);
             update_option('wp_auth_jwt_secret', $secret);
         }
         
-        return $secret;
+        $this->secret_key = $secret;
+        $this->issuer = get_site_url();
+        $this->audience = get_site_url();
+        
+        // SECURITY WARNING: Display in admin if not using HTTPS
+        if (!is_ssl() && is_admin()) {
+            add_action('admin_notices', array($this, 'https_warning'));
+        }
     }
     
     /**
-     * Generate JWT token for user
+     * Display HTTPS warning in admin
+     */
+    public function https_warning() {
+        echo '<div class="notice notice-error"><p>';
+        echo '<strong>WP Authenticator Security Warning:</strong> ';
+        echo 'JWT tokens should only be used over HTTPS. Please enable SSL/TLS for your site.';
+        echo '</p></div>';
+    }
+    
+    /**
+     * Generate JWT token for user using Firebase JWT
      */
     public function generate_token($user_id, $additional_claims = array()) {
         $issued_at = time();
         $expiration = $issued_at + $this->expiration_time;
         
         $payload = array(
-            'iss' => get_site_url(), // Issuer
-            'aud' => get_site_url(), // Audience
-            'iat' => $issued_at,     // Issued at
-            'exp' => $expiration,    // Expiration
+            'iss' => $this->issuer, // Issuer
+            'aud' => $this->audience, // Audience
+            'iat' => $issued_at, // Issued at
+            'exp' => $expiration, // Expiration
             'user_id' => $user_id,
             'user_login' => get_userdata($user_id)->user_login
         );
         
         // Add any additional claims
-        if (!empty($additional_claims)) {
-            $payload = array_merge($payload, $additional_claims);
-        }
+        $payload = array_merge($payload, $additional_claims);
         
-        return $this->encode($payload);
+        // Generate access token
+        $access_token = JWT::encode($payload, $this->secret_key, $this->algorithm);
+        
+        // Generate refresh token
+        $refresh_payload = array(
+            'iss' => $this->issuer,
+            'aud' => $this->audience,
+            'iat' => $issued_at,
+            'exp' => $issued_at + $this->refresh_expiration_time,
+            'user_id' => $user_id,
+            'type' => 'refresh'
+        );
+        
+        $refresh_token = JWT::encode($refresh_payload, $this->secret_key, $this->algorithm);
+        
+        return array(
+            'token' => $access_token,
+            'refresh_token' => $refresh_token,
+            'expires' => $expiration
+        );
     }
     
     /**
-     * Validate and decode JWT token
+     * Validate JWT token with comprehensive security checks using Firebase JWT
      */
     public function validate_token($token) {
         try {
-            $payload = $this->decode($token);
+            // Check if token is blacklisted first
+            if ($this->is_token_blacklisted($token)) {
+                return new WP_Error('token_blacklisted', 'Token has been revoked');
+            }
             
-            // Check if token is expired
-            if (isset($payload['exp']) && $payload['exp'] < time()) {
-                return new WP_Error('token_expired', 'Token has expired');
+            // Decode and validate token using Firebase JWT
+            $decoded = JWT::decode($token, new Key($this->secret_key, $this->algorithm));
+            $payload = (array) $decoded;
+            
+            // Additional validation checks
+            if (!isset($payload['user_id'])) {
+                return new WP_Error('invalid_token', 'Token missing user ID');
             }
             
             // Check if user still exists
-            if (isset($payload['user_id'])) {
-                $user = get_userdata($payload['user_id']);
-                if (!$user) {
-                    return new WP_Error('user_not_found', 'User no longer exists');
-                }
+            $user = get_userdata($payload['user_id']);
+            if (!$user) {
+                return new WP_Error('user_not_found', 'User no longer exists');
             }
             
             return $payload;
             
+        } catch (ExpiredException $e) {
+            return new WP_Error('token_expired', 'Token has expired');
+        } catch (SignatureInvalidException $e) {
+            return new WP_Error('invalid_signature', 'Token signature is invalid');
+        } catch (BeforeValidException $e) {
+            return new WP_Error('token_not_valid_yet', 'Token is not valid yet');
         } catch (Exception $e) {
             return new WP_Error('invalid_token', 'Invalid token: ' . $e->getMessage());
         }
     }
     
     /**
-     * Refresh JWT token
+     * Refresh token using Firebase JWT
      */
-    public function refresh_token($token) {
-        $payload = $this->validate_token($token);
-        
-        if (is_wp_error($payload)) {
-            return $payload;
+    public function refresh_token($refresh_token) {
+        try {
+            // Validate the refresh token
+            $decoded = JWT::decode($refresh_token, new Key($this->secret_key, $this->algorithm));
+            $payload = (array) $decoded;
+            
+            // Check if it's actually a refresh token
+            if (!isset($payload['type']) || $payload['type'] !== 'refresh') {
+                return new WP_Error('invalid_refresh_token', 'Not a valid refresh token');
+            }
+            
+            // Check if user still exists
+            $user = get_userdata($payload['user_id']);
+            if (!$user) {
+                return new WP_Error('user_not_found', 'User no longer exists');
+            }
+            
+            // Generate new tokens
+            return $this->generate_token($payload['user_id']);
+            
+        } catch (ExpiredException $e) {
+            return new WP_Error('refresh_token_expired', 'Refresh token has expired');
+        } catch (Exception $e) {
+            return new WP_Error('invalid_refresh_token', 'Invalid refresh token: ' . $e->getMessage());
         }
-        
-        // Generate new token with same user data
-        return $this->generate_token($payload['user_id']);
     }
     
     /**
-     * Encode JWT token
-     */
-    private function encode($payload) {
-        $header = array(
-            'typ' => 'JWT',
-            'alg' => $this->algorithm
-        );
-        
-        $header_encoded = $this->base64url_encode(json_encode($header));
-        $payload_encoded = $this->base64url_encode(json_encode($payload));
-        
-        $signature = $this->generate_signature($header_encoded . '.' . $payload_encoded);
-        
-        return $header_encoded . '.' . $payload_encoded . '.' . $signature;
-    }
-    
-    /**
-     * Decode JWT token
-     */
-    private function decode($token) {
-        $parts = explode('.', $token);
-        
-        if (count($parts) !== 3) {
-            throw new Exception('Invalid token format');
-        }
-        
-        list($header_encoded, $payload_encoded, $signature) = $parts;
-        
-        // Verify signature
-        $expected_signature = $this->generate_signature($header_encoded . '.' . $payload_encoded);
-        if (!hash_equals($signature, $expected_signature)) {
-            throw new Exception('Invalid token signature');
-        }
-        
-        // Decode header and payload
-        $header = json_decode($this->base64url_decode($header_encoded), true);
-        $payload = json_decode($this->base64url_decode($payload_encoded), true);
-        
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new Exception('Invalid JSON in token');
-        }
-        
-        // Verify algorithm
-        if (!isset($header['alg']) || $header['alg'] !== $this->algorithm) {
-            throw new Exception('Invalid algorithm');
-        }
-        
-        return $payload;
-    }
-    
-    /**
-     * Generate HMAC signature
-     */
-    private function generate_signature($data) {
-        $signature = hash_hmac('sha256', $data, $this->secret_key, true);
-        return $this->base64url_encode($signature);
-    }
-    
-    /**
-     * Base64 URL encode
-     */
-    private function base64url_encode($data) {
-        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
-    }
-    
-    /**
-     * Base64 URL decode
-     */
-    private function base64url_decode($data) {
-        return base64_decode(str_pad(strtr($data, '-_', '+/'), strlen($data) % 4, '=', STR_PAD_RIGHT));
-    }
-    
-    /**
-     * Extract token from Authorization header
+     * Get token from Authorization header
      */
     public function get_token_from_header() {
         $auth_header = null;
         
-        // Check different ways the header might be set
+        // Check for Authorization header
         if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
             $auth_header = $_SERVER['HTTP_AUTHORIZATION'];
         } elseif (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
@@ -191,12 +185,7 @@ class WP_Auth_JWT_Handler {
             }
         }
         
-        if (!$auth_header) {
-            return null;
-        }
-        
-        // Extract token from "Bearer TOKEN" format
-        if (preg_match('/Bearer\s+(.*)$/i', $auth_header, $matches)) {
+        if ($auth_header && preg_match('/Bearer\s+(.*)$/i', $auth_header, $matches)) {
             return $matches[1];
         }
         
@@ -212,103 +201,78 @@ class WP_Auth_JWT_Handler {
         }
         
         if (!$token) {
-            return null;
+            return false;
         }
         
         $payload = $this->validate_token($token);
         
         if (is_wp_error($payload)) {
-            return null;
+            return false;
         }
         
-        return isset($payload['user_id']) ? $payload['user_id'] : null;
+        return isset($payload['user_id']) ? $payload['user_id'] : false;
     }
     
     /**
-     * Check if current request has valid JWT
+     * Check if current request is authenticated
      */
     public function is_authenticated() {
-        $user_id = $this->get_user_id_from_token();
-        return !empty($user_id);
+        $token = $this->get_token_from_header();
+        
+        if (!$token) {
+            return false;
+        }
+        
+        $payload = $this->validate_token($token);
+        return !is_wp_error($payload);
     }
     
     /**
-     * Set expiration time for tokens (in seconds)
+     * Set expiration time for access tokens
      */
     public function set_expiration_time($seconds) {
-        $this->expiration_time = intval($seconds);
+        $this->expiration_time = $seconds;
     }
     
     /**
-     * Get token expiration time
+     * Get expiration time
      */
     public function get_expiration_time() {
         return $this->expiration_time;
     }
     
     /**
-     * Generate refresh token (longer lived)
-     */
-    public function generate_refresh_token($user_id) {
-        $old_expiration = $this->expiration_time;
-        $this->expiration_time = 604800; // 7 days
-        
-        $token = $this->generate_token($user_id, array('type' => 'refresh'));
-        
-        $this->expiration_time = $old_expiration; // Reset
-        
-        return $token;
-    }
-    
-    /**
-     * Validate refresh token and generate new access token
-     */
-    public function refresh_access_token($refresh_token) {
-        $payload = $this->validate_token($refresh_token);
-        
-        if (is_wp_error($payload)) {
-            return $payload;
-        }
-        
-        if (!isset($payload['type']) || $payload['type'] !== 'refresh') {
-            return new WP_Error('invalid_refresh_token', 'Not a valid refresh token');
-        }
-        
-        // Generate new access token
-        return $this->generate_token($payload['user_id']);
-    }
-    
-    /**
-     * Blacklist a token (simple implementation using transients)
+     * Blacklist a token (for logout functionality)
      */
     public function blacklist_token($token) {
-        $payload = $this->decode($token);
-        if (isset($payload['exp'])) {
-            $remaining_time = $payload['exp'] - time();
-            if ($remaining_time > 0) {
-                // Store token hash in blacklist until it expires
-                $token_hash = hash('sha256', $token);
-                set_transient('wp_auth_blacklist_' . $token_hash, true, $remaining_time);
+        try {
+            // Decode token to get expiration time
+            $decoded = JWT::decode($token, new Key($this->secret_key, $this->algorithm));
+            $payload = (array) $decoded;
+            
+            if (isset($payload['exp'])) {
+                $expiration = $payload['exp'];
+                $current_time = time();
+                
+                // Only blacklist if token hasn't expired yet
+                if ($expiration > $current_time) {
+                    $remaining_time = $expiration - $current_time;
+                    $token_hash = hash('sha256', $token);
+                    
+                    // Store in transient cache until token expires
+                    set_transient('wp_auth_blacklist_' . $token_hash, true, $remaining_time);
+                }
             }
+        } catch (Exception $e) {
+            // Token is invalid anyway, no need to blacklist
         }
     }
     
     /**
-     * Check if token is blacklisted
+     * Check if a token is blacklisted
      */
     public function is_token_blacklisted($token) {
         $token_hash = hash('sha256', $token);
         return get_transient('wp_auth_blacklist_' . $token_hash) !== false;
-    }
-    
-    /**
-     * Validate token with blacklist check
-     */
-    public function validate_token_with_blacklist($token) {
-        if ($this->is_token_blacklisted($token)) {
-            return new WP_Error('token_blacklisted', 'Token has been revoked');
-        }
-        
-        return $this->validate_token($token);
     }
 }
