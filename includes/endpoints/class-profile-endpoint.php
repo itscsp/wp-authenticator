@@ -2,7 +2,16 @@
 if (!defined('ABSPATH')) { exit; }
 class WP_Auth_Profile_Endpoint {
     public static function get($request) {
-        $user_id = get_current_user_id();
+        $jwt_handler = new WP_Auth_JWT_Handler();
+        $token = $jwt_handler->get_token_from_header();
+        if (!$token) {
+            return new WP_Error('no_token', __('No token provided.', 'wp-authenticator'), array('status' => 401));
+        }
+        $payload = $jwt_handler->validate_token($token);
+        if (is_wp_error($payload)) {
+            return $payload;
+        }
+        $user_id = $payload['user_id'];
         $user = get_userdata($user_id);
         if (!$user) {
             return new WP_Error('user_not_found', __('User not found.', 'wp-authenticator'), array('status' => 404));
@@ -10,7 +19,16 @@ class WP_Auth_Profile_Endpoint {
         return array('success' => true, 'data' => array('user_id' => $user->ID, 'username' => $user->user_login, 'email' => $user->user_email, 'first_name' => $user->first_name, 'last_name' => $user->last_name, 'display_name' => $user->display_name, 'description' => $user->description, 'registered' => $user->user_registered, 'roles' => $user->roles));
     }
     public static function update($request) {
-        $user_id = get_current_user_id();
+        $jwt_handler = new WP_Auth_JWT_Handler();
+        $token = $jwt_handler->get_token_from_header();
+        if (!$token) {
+            return new WP_Error('no_token', __('No token provided.', 'wp-authenticator'), array('status' => 401));
+        }
+        $payload = $jwt_handler->validate_token($token);
+        if (is_wp_error($payload)) {
+            return $payload;
+        }
+        $user_id = $payload['user_id'];
         $user_data = array('ID' => $user_id);
         $fields = array('first_name', 'last_name', 'email', 'description');
         foreach ($fields as $field) {

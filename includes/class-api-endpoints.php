@@ -61,7 +61,7 @@ class WP_Auth_API_Endpoints {
         register_rest_route('wp-auth/v1', '/change-password', array(
             'methods' => 'POST',
             'callback' => array($this, 'change_password'),
-            'permission_callback' => 'is_user_logged_in',
+            'permission_callback' => array('WP_Auth_JWT_Permission', 'permission_check'),
             'args' => array(
                 'current_password' => array(
                     'required' => true,
@@ -78,14 +78,14 @@ class WP_Auth_API_Endpoints {
         register_rest_route('wp-auth/v1', '/refresh-token', array(
             'methods' => 'POST',
             'callback' => array($this, 'refresh_token'),
-            'permission_callback' => 'is_user_logged_in',
+            'permission_callback' => '__return_true',
         ));
         
         // User roles endpoint
         register_rest_route('wp-auth/v1', '/user/roles', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_user_roles'),
-            'permission_callback' => 'is_user_logged_in',
+            'permission_callback' => array('WP_Auth_JWT_Permission', 'permission_check'),
         ));
         
         // Check username availability
@@ -220,7 +220,16 @@ class WP_Auth_API_Endpoints {
      * Change password endpoint
      */
     public function change_password($request) {
-        $user_id = get_current_user_id();
+        $jwt_handler = new WP_Auth_JWT_Handler();
+        $token = $jwt_handler->get_token_from_header();
+        if (!$token) {
+            return new WP_Error('no_token', __('No token provided.', 'wp-authenticator'), array('status' => 401));
+        }
+        $payload = $jwt_handler->validate_token($token);
+        if (is_wp_error($payload)) {
+            return $payload;
+        }
+        $user_id = $payload['user_id'];
         $current_password = $request->get_param('current_password');
         $new_password = $request->get_param('new_password');
         
@@ -294,7 +303,16 @@ class WP_Auth_API_Endpoints {
      * Get user roles endpoint
      */
     public function get_user_roles($request) {
-        $user_id = get_current_user_id();
+        $jwt_handler = new WP_Auth_JWT_Handler();
+        $token = $jwt_handler->get_token_from_header();
+        if (!$token) {
+            return new WP_Error('no_token', __('No token provided.', 'wp-authenticator'), array('status' => 401));
+        }
+        $payload = $jwt_handler->validate_token($token);
+        if (is_wp_error($payload)) {
+            return $payload;
+        }
+        $user_id = $payload['user_id'];
         $user = get_userdata($user_id);
         
         if (!$user) {

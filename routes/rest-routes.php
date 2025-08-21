@@ -84,14 +84,14 @@ class WP_Auth_Rest_Routes {
         register_rest_route('wp-auth/v1', '/profile', array(
             'methods' => 'GET',
             'callback' => array('WP_Auth_Profile_Endpoint', 'get'),
-            'permission_callback' => 'is_user_logged_in',
+            'permission_callback' => array('WP_Auth_JWT_Permission', 'permission_check'),
         ));
 
         // Update profile endpoint
         register_rest_route('wp-auth/v1', '/profile', array(
             'methods' => 'PUT',
             'callback' => array('WP_Auth_Profile_Endpoint', 'update'),
-            'permission_callback' => 'is_user_logged_in',
+            'permission_callback' => array('WP_Auth_JWT_Permission', 'permission_check'),
             'args' => array(
                 'first_name' => array(
                     'required' => false,

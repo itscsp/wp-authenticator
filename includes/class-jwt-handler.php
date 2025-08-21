@@ -106,7 +106,7 @@ class WP_Auth_JWT_Handler {
         try {
             // Check if token is blacklisted first
             if ($this->is_token_blacklisted($token)) {
-                return new WP_Error('token_blacklisted', 'Token has been revoked');
+                return new WP_Error('token_blacklisted', 'Token has been revoked', array('status' => 401));
             }
             
             // Decode and validate token using Firebase JWT

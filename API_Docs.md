@@ -6,62 +6,122 @@ Base URL: `/wp-json/wp-auth/v1/`
 
 ## 1. Login
 - **Endpoint:** `/login`
-- **Method:** POST
-- **Parameters:**
-  - `username` (string, required)
-  - `password` (string, required)
+## 1. Login
+**Postman Example:**
+- Method: POST
+- URL: `{{base_url}}/login`
+- Headers:
+  - Content-Type: application/json
+- Body (raw, JSON):
+  {
+    "username": "your_username",
+    "password": "your_password",
+    "remember": true
+  }
   - `remember` (boolean, optional, default: false)
 - **Response:**
-  - `success` (bool)
-  - `message` (string)
-  - `data`: user info, JWT token, refresh token, expiry
-
----
-
 ## 2. Register
-- **Endpoint:** `/register`
-- **Method:** POST
-- **Parameters:**
-  - `username` (string, required)
-  - `email` (string, required)
-  - `password` (string, required)
-  - `first_name` (string, optional)
-  - `last_name` (string, optional)
-- **Response:**
-  - `success` (bool)
-  - `message` (string)
-  - `data`: email, OTP expiry, verification required, next step
-
+**Postman Example:**
+- Method: POST
+- URL: `{{base_url}}/register`
+- Headers:
+  - Content-Type: application/json
+- Body (raw, JSON):
+  {
+    "username": "your_username",
+    "email": "your_email@example.com",
+    "password": "your_password",
+    "first_name": "First",
+    "last_name": "Last"
+  }
 ---
 
 ## 3. Logout
-- **Endpoint:** `/logout`
-- **Method:** POST
-- **Permission:** User must be logged in
-- **Parameters:**
-  - `token` (string, optional)
-  - `refresh_token` (string, optional)
-- **Response:**
-  - `success` (bool)
-  - `message` (string)
+**Postman Example:**
+- Method: POST
+- URL: `{{base_url}}/logout`
+- Headers:
+  - Authorization: Bearer <your_jwt_token>
+  - Content-Type: application/json
+- Body (raw, JSON):
+  {
+    "token": "<your_jwt_token>",
+    "refresh_token": "<your_refresh_token>"
+  }
+  - `username` (string, required)
+  - `email` (string, required)
+## 4. Profile
+**Postman Example (GET):**
+- Method: GET
+- URL: `{{base_url}}/profile`
+- Headers:
+  - Authorization: Bearer <your_jwt_token>
+  - Content-Type: application/json
 
+**Postman Example (PUT):**
+- Method: PUT
+- URL: `{{base_url}}/profile`
+- Headers:
+  - Authorization: Bearer <your_jwt_token>
+  - Content-Type: application/json
+- Body (raw, JSON):
+  {
+    "first_name": "First",
+    "last_name": "Last",
+    "email": "your_email@example.com",
+    "description": "Profile description"
+  }
 ---
 
-## 4. Profile
-- **Endpoint:** `/profile`
-- **Method:** GET
+## 5. Validate Token
+**Postman Example:**
+- Method: GET
+- URL: `{{base_url}}/validate-token?token=<your_jwt_token>`
+- Headers:
+  - Authorization: Bearer <your_jwt_token>
+  - Content-Type: application/json
+- **Parameters:**
+  - `token` (string, optional)
+## 6. Security Stats
+**Postman Example:**
+- Method: GET
+- URL: `{{base_url}}/security/stats`
+- Headers:
+  - Authorization: Bearer <admin_jwt_token>
+  - Content-Type: application/json
+
+---
+## 7. Verify OTP
+**Postman Example:**
+- Method: POST
+- URL: `{{base_url}}/verify-otp`
+- Headers:
+  - Content-Type: application/json
+- Body (raw, JSON):
+  {
+    "email": "your_email@example.com",
+    "otp": "123456"
+  }
 - **Permission:** User must be logged in
 - **Response:**
-  - `success` (bool)
-  - `data`: user info
-
-- **Endpoint:** `/profile`
+## 8. Resend OTP
+**Postman Example:**
+- Method: POST
+- URL: `{{base_url}}/resend-otp`
+- Headers:
+  - Content-Type: application/json
+- Body (raw, JSON):
+  {
+    "email": "your_email@example.com"
+  }
 - **Method:** PUT
 - **Permission:** User must be logged in
-- **Parameters:**
-  - `first_name` (string, optional)
-  - `last_name` (string, optional)
-  - `email` (string, optional)
+## 9. OTP Status
+**Postman Example:**
+- Method: GET
+- URL: `{{base_url}}/otp-status?email=your_email@example.com`
+- Headers:
+  - Content-Type: application/json
   - `description` (string, optional)
 - **Response:**
   - `success` (bool)
