@@ -115,25 +115,25 @@ class WP_Auth_JWT_Handler {
             
             // Additional validation checks
             if (!isset($payload['user_id'])) {
-                return new WP_Error('invalid_token', 'Token missing user ID');
+                return new WP_Error('invalid_token', 'Token missing user ID', array('status' => 400));
             }
             
             // Check if user still exists
             $user = get_userdata($payload['user_id']);
             if (!$user) {
-                return new WP_Error('user_not_found', 'User no longer exists');
+                return new WP_Error('user_not_found', 'User no longer exists', array('status' => 404));
             }
             
             return $payload;
             
         } catch (ExpiredException $e) {
-            return new WP_Error('token_expired', 'Token has expired');
+            return new WP_Error('token_expired', 'Token has expired', array('status' => 401));
         } catch (SignatureInvalidException $e) {
-            return new WP_Error('invalid_signature', 'Token signature is invalid');
+            return new WP_Error('invalid_signature', 'Token signature is invalid', array('status' => 401));
         } catch (BeforeValidException $e) {
-            return new WP_Error('token_not_valid_yet', 'Token is not valid yet');
+            return new WP_Error('token_not_valid_yet', 'Token is not valid yet', array('status' => 401));
         } catch (Exception $e) {
-            return new WP_Error('invalid_token', 'Invalid token: ' . $e->getMessage());
+            return new WP_Error('invalid_token', 'Invalid token: ' . $e->getMessage(), array('status' => 400));
         }
     }
     
