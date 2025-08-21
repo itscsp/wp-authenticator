@@ -1,0 +1,107 @@
+name: Build and Release WP Authenticator
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.1'
+        extensions: zip, curl, mbstring, json
+        tools: composer:v2
+        
+    - name: Validate composer.json
+      run: composer validate --strict
+      
+    - name: Cache Composer packages
+      id: composer-cache
+      uses: actions/cache@v3
+      with:
+        path: vendor
+        key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-php-
+          
+    - name: Install dependencies
+      run: composer install --no-dev --optimize-autoloader --no-interaction
+      
+    - name: Get version from tag or input
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+        else
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        fi
+        
+    - name: Create plugin package
+      run: |
+        # Create build directory
+        mkdir -p build/wp-authenticator
+        
+        # Copy plugin files
+        cp -r includes/ build/wp-authenticator/includes/
+        cp -r routes/ build/wp-authenticator/routes/
+        cp -r vendor/ build/wp-authenticator/vendor/
+        cp wp-authenticator.php build/wp-authenticator/
+        cp API_Docs.md build/wp-authenticator/
+        cp composer.json build/wp-authenticator/
+        cp composer.lock build/wp-authenticator/
+        
+        # Create zip package
+        cd build
+        zip -r wp-authenticator-${{ env.VERSION }}.zip wp-authenticator/ -x "*.DS_Store*" "*__MACOSX*"
+        
+        # Move to root for upload
+        mv wp-authenticator-${{ env.VERSION }}.zip ../
+        
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: wp-authenticator-${{ env.VERSION }}
+        path: wp-authenticator-${{ env.VERSION }}.zip
+        
+    - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: wp-authenticator-${{ env.VERSION }}.zip
+        name: WP Authenticator ${{ env.VERSION }}
+        body: |
+          ## WP Authenticator ${{ env.VERSION }}
+          
+          ### 🚀 Installation
+          1. Download `wp-authenticator-${{ env.VERSION }}.zip`
+          2. Upload to WordPress Admin → Plugins → Add New → Upload Plugin
+          3. Activate the plugin
+          4. Configure JWT settings in WP Admin → WP Authenticator
+          
+          ### 📝 Features
+          - JWT Authentication
+          - REST API Endpoints
+          - OTP Verification
+          - Token Blacklisting
+          - Admin Dashboard
+          
+          ### 📚 Documentation
+          See `API_Docs.md` in the plugin package for complete API documentation.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
