@@ -249,22 +249,27 @@ class WP_Auth_JWT_Handler {
             // Decode token to get expiration time
             $decoded = JWT::decode($token, new Key($this->secret_key, $this->algorithm));
             $payload = (array) $decoded;
-            
             if (isset($payload['exp'])) {
                 $expiration = $payload['exp'];
                 $current_time = time();
-                
                 // Only blacklist if token hasn't expired yet
                 if ($expiration > $current_time) {
                     $remaining_time = $expiration - $current_time;
                     $token_hash = hash('sha256', $token);
-                    
-                    // Store in transient cache until token expires
                     set_transient('wp_auth_blacklist_' . $token_hash, true, $remaining_time);
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        error_log('[JWT] Blacklisted token: ' . $token_hash . ' for ' . $remaining_time . ' seconds');
+                    }
+                } else {
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        error_log('[JWT] Token expired, not blacklisted: ' . $token);
+                    }
                 }
             }
         } catch (Exception $e) {
-            // Token is invalid anyway, no need to blacklist
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[JWT] Blacklist error: ' . $e->getMessage());
+            }
         }
     }
     
@@ -273,6 +278,10 @@ class WP_Auth_JWT_Handler {
      */
     public function is_token_blacklisted($token) {
         $token_hash = hash('sha256', $token);
-        return get_transient('wp_auth_blacklist_' . $token_hash) !== false;
+        $is_blacklisted = get_transient('wp_auth_blacklist_' . $token_hash) !== false;
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[JWT] Check blacklist for token: ' . $token_hash . ' = ' . ($is_blacklisted ? 'true' : 'false'));
+        }
+        return $is_blacklisted;
     }
 }

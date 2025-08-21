@@ -11,19 +11,20 @@ class WP_Auth_Rest_Routes {
         if ( ! function_exists('register_rest_route') ) {
             return;
         }
-        // Login endpoint
-        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-login-endpoint.php';
+    // Load JWT permission class
+    require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-jwt-permission.php';
+    // Login endpoint
+    require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-login-endpoint.php';
         register_rest_route('wp-auth/v1', '/login', array(
             'methods' => 'POST',
             'callback' => array('WP_Auth_Login_Endpoint', 'handle'),
             'permission_callback' => '__return_true',
             'args' => array(
                 'username' => array(
-                require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-jwt-permission.php';
                     'required' => true,
                     'type' => 'string',
                     'sanitize_callback' => 'sanitize_text_field',
-                    'permission_callback' => array('WP_Auth_JWT_Permission', 'permission_check'),
+                ),
                 'password' => array(
                     'required' => true,
                     'type' => 'string',
@@ -31,14 +32,13 @@ class WP_Auth_Rest_Routes {
                 'remember' => array(
                     'required' => false,
                     'type' => 'boolean',
-                    'permission_callback' => array('WP_Auth_JWT_Permission', 'permission_check'),
                 ),
             ),
         ));
 
         // Register endpoint
         require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-register-endpoint.php';
-                    'permission_callback' => array('WP_Auth_JWT_Permission', 'permission_check'),
+        register_rest_route('wp-auth/v1', '/register', array(
             'methods' => 'POST',
             'callback' => array('WP_Auth_Register_Endpoint', 'handle'),
             'permission_callback' => '__return_true',
@@ -68,9 +68,10 @@ class WP_Auth_Rest_Routes {
                     'sanitize_callback' => 'sanitize_text_field',
                 ),
             ),
-                    'permission_callback' => array('WP_Auth_JWT_Permission', 'permission_check'),
+        ));
 
-        // Logout endpoint
+     
+                    // Logout endpoint
         require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-logout-endpoint.php';
         register_rest_route('wp-auth/v1', '/logout', array(
             'methods' => 'POST',
