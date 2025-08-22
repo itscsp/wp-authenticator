@@ -15,7 +15,7 @@ class WP_Auth_Security_Handler {
     public function __construct() {
         add_action('init', array($this, 'init'));
         add_action('wp_login_failed', array($this, 'handle_failed_login'));
-        add_filter('authenticate', array($this, 'check_ip_block'), 30, 3);
+        // add_filter('authenticate', array($this, 'check_ip_block'), 30, 5);
         
         // Schedule cleanup event
         if (!wp_next_scheduled('wp_auth_cleanup')) {

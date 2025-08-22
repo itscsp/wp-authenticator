@@ -3,7 +3,7 @@
  * Plugin Name: WP Authenticator
  * Plugin URI: https://github.com/itscsp/wp-authenticator
  * Description: Enhanced user login and authentication functionality for WordPress with custom login forms, security features, and user management.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: Chethan S poojary
  * License: GPL v2 or later
  * Text Domain: wp-authenticator
@@ -15,7 +15,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('WP_AUTHENTICATOR_VERSION', '1.0.0');
+define('WP_AUTHENTICATOR_VERSION', '1.0.1');
 define('WP_AUTHENTICATOR_PLUGIN_PATH', plugin_dir_path(__FILE__));
 
 // Load Composer autoloader for Firebase JWT

@@ -19,8 +19,8 @@ This repository uses GitHub Actions for automated testing, building, and releasi
 ### Automatic Release (Recommended)
 1. Create and push a version tag:
    ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag v1.0.1
+   git push origin v1.0.1
    ```
 2. GitHub Actions will automatically:
    - Build the plugin

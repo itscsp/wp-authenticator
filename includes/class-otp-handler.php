@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 class WP_Auth_OTP_Handler {
     
     private $otp_length = 6;
-    private $otp_expiry = 600; // 10 minutes in seconds
+    private $otp_expiry = 300; // 5 minutes in seconds
     private $max_attempts = 3;
     
     public function __construct() {
