@@ -82,6 +82,7 @@ The registration process is now divided into 3 steps to enhance security and imp
     "username": "johndoe",
     "email": "user@example.com",
     "token": "jwt_token_here...",
+    "refresh_token": "refresh_jwt_token_here...",
     "token_expires": 1640995200,
     "user": {
       "ID": 123,
@@ -232,6 +233,13 @@ const completeResponse = await fetch('/wp-json/wp-auth/v1/register/complete', {
 
 const completeData = await completeResponse.json();
 const userToken = completeData.data.token; // JWT token for authentication
+const refreshToken = completeData.data.refresh_token; // Refresh token for token renewal
+
+// Store tokens securely
+localStorage.setItem('auth_token', userToken);
+localStorage.setItem('refresh_token', refreshToken);
+
+// User is now authenticated and can make API calls
 ```
 
 ## Benefits
@@ -241,4 +249,5 @@ const userToken = completeData.data.token; // JWT token for authentication
 3. **Spam Prevention**: OTP verification prevents automated registrations
 4. **Email Validation**: Ensures users provide accessible email addresses
 5. **Session Recovery**: Users can check status and continue where they left off
-6. **Flexible Implementation**: Frontend can implement as single form or multiple steps
+6. **Seamless Authentication**: Automatic login with both access and refresh tokens
+7. **Token Management**: Refresh token enables seamless token renewal without re-login

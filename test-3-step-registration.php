@@ -108,7 +108,8 @@ echo "   Body: {\n";
 echo "     \"session_token\": \"{$session_token}\",\n";
 echo "     \"username\": \"{$test_data['username']}\",\n";
 echo "     \"password\": \"{$test_data['password']}\"\n";
-echo "   }\n\n";
+echo "   }\n";
+echo "   Expected Response: User account created + JWT token + refresh token\n\n";
 
 echo "=== cURL Examples ===\n";
 echo "Step 2:\n";

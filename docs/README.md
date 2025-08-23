@@ -10,6 +10,7 @@ Welcome to the comprehensive documentation for WP Authenticator plugin.
 
 ### 🔐 Registration System
 - **[3-Step Registration](./3-step-registration.md)** - Detailed guide to the new registration process
+- **[Token Management](./token-management.md)** - Comprehensive guide to JWT and refresh token handling
 - **[Registration Comparison](./registration-comparison.md)** - Legacy vs 3-step process comparison
 
 ### 🏗️ Development

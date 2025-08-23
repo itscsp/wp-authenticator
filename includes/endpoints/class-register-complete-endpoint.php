@@ -146,7 +146,6 @@ class WP_Auth_Register_Complete_Endpoint {
                 'username' => $username,
                 'email' => $session_data['email'],
                 'token' => $token_data['token'],
-                'refresh_token' => $token_data['refresh_token'],
                 'token_expires' => $token_data['expires'],
                 'user' => array(
                     'ID' => $user_id,

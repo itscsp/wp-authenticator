@@ -257,6 +257,7 @@ The new registration system provides a secure, step-by-step process for user reg
     "username": "johndoe",
     "email": "user@example.com",
     "token": "jwt_token_here...",
+    "refresh_token": "refresh_jwt_token_here...",
     "token_expires": 1640995200,
     "user": {
       "ID": 123,

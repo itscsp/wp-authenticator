@@ -21,6 +21,8 @@
 #### Automatic Login
 - **Seamless Experience**: Users are automatically logged in after successful registration
 - **JWT Token Generation**: Immediate token provision for authenticated requests
+- **Refresh Token Included**: Both access and refresh tokens provided for better token management
+- **No Re-login Required**: Complete authentication flow in registration process
 
 ### 🗂️ Code Organization
 
