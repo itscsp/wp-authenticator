@@ -14,7 +14,7 @@ class WP_Auth_Rest_Routes {
     // Load JWT permission class
     require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-jwt-permission.php';
     // Login endpoint
-    require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-login-endpoint.php';
+    require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/auth/class-login-endpoint.php';
         register_rest_route('wp-auth/v1', '/login', array(
             'methods' => 'POST',
             'callback' => array('WP_Auth_Login_Endpoint', 'handle'),
@@ -36,8 +36,97 @@ class WP_Auth_Rest_Routes {
             ),
         ));
 
-        // Register endpoint
-        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-register-endpoint.php';
+        // Registration endpoints - 3-step process
+        
+        // Step 1: Start registration (collect name and email, send OTP)
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/registration/class-register-start-endpoint.php';
+        register_rest_route('wp-auth/v1', '/register/start', array(
+            'methods' => 'POST',
+            'callback' => array('WP_Auth_Register_Start_Endpoint', 'handle'),
+            'permission_callback' => '__return_true',
+            'args' => array(
+                'email' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_email',
+                    'validate_callback' => function($param) {
+                        return function_exists('is_email') ? is_email($param) : true;
+                    }
+                ),
+                'first_name' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'last_name' => array(
+                    'required' => false,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+            ),
+        ));
+
+        // Step 2: Verify OTP
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/registration/class-register-verify-otp-endpoint.php';
+        register_rest_route('wp-auth/v1', '/register/verify-otp', array(
+            'methods' => 'POST',
+            'callback' => array('WP_Auth_Register_Verify_OTP_Endpoint', 'handle'),
+            'permission_callback' => '__return_true',
+            'args' => array(
+                'session_token' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'otp' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+            ),
+        ));
+
+        // Step 3: Complete registration (set username and password)
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/registration/class-register-complete-endpoint.php';
+        register_rest_route('wp-auth/v1', '/register/complete', array(
+            'methods' => 'POST',
+            'callback' => array('WP_Auth_Register_Complete_Endpoint', 'handle'),
+            'permission_callback' => '__return_true',
+            'args' => array(
+                'session_token' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'username' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'password' => array(
+                    'required' => true,
+                    'type' => 'string',
+                ),
+            ),
+        ));
+
+        // Registration status endpoint
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/registration/class-register-status-endpoint.php';
+        register_rest_route('wp-auth/v1', '/register/status', array(
+            'methods' => 'GET',
+            'callback' => array('WP_Auth_Register_Status_Endpoint', 'handle'),
+            'permission_callback' => '__return_true',
+            'args' => array(
+                'session_token' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+            ),
+        ));
+
+        // Legacy single-step registration endpoint (for backward compatibility)
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/registration/class-register-endpoint.php';
         register_rest_route('wp-auth/v1', '/register', array(
             'methods' => 'POST',
             'callback' => array('WP_Auth_Register_Endpoint', 'handle'),
@@ -72,7 +161,7 @@ class WP_Auth_Rest_Routes {
 
      
                     // Logout endpoint
-        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-logout-endpoint.php';
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/auth/class-logout-endpoint.php';
         register_rest_route('wp-auth/v1', '/logout', array(
             'methods' => 'POST',
             'callback' => array('WP_Auth_Logout_Endpoint', 'handle'),
@@ -80,7 +169,7 @@ class WP_Auth_Rest_Routes {
         ));
 
         // User profile endpoint
-        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-profile-endpoint.php';
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/profile/class-profile-endpoint.php';
         register_rest_route('wp-auth/v1', '/profile', array(
             'methods' => 'GET',
             'callback' => array('WP_Auth_Profile_Endpoint', 'get'),
@@ -117,7 +206,7 @@ class WP_Auth_Rest_Routes {
         ));
 
         // Validate token endpoint
-        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-validate-token-endpoint.php';
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/auth/class-validate-token-endpoint.php';
         register_rest_route('wp-auth/v1', '/validate-token', array(
             'methods' => 'GET',
             'callback' => array('WP_Auth_Validate_Token_Endpoint', 'handle'),
@@ -125,7 +214,7 @@ class WP_Auth_Rest_Routes {
         ));
 
         // Security stats endpoint
-        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-security-stats-endpoint.php';
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/security/class-security-stats-endpoint.php';
         register_rest_route('wp-auth/v1', '/security/stats', array(
             'methods' => 'GET',
             'callback' => array('WP_Auth_Security_Stats_Endpoint', 'handle'),
@@ -133,7 +222,7 @@ class WP_Auth_Rest_Routes {
         ));
 
         // OTP endpoints
-        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-verify-otp-endpoint.php';
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/otp/class-verify-otp-endpoint.php';
         register_rest_route('wp-auth/v1', '/verify-otp', array(
             'methods' => 'POST',
             'callback' => array('WP_Auth_Verify_OTP_Endpoint', 'handle'),
@@ -155,7 +244,7 @@ class WP_Auth_Rest_Routes {
             ),
         ));
 
-        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-resend-otp-endpoint.php';
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/otp/class-resend-otp-endpoint.php';
         register_rest_route('wp-auth/v1', '/resend-otp', array(
             'methods' => 'POST',
             'callback' => array('WP_Auth_Resend_OTP_Endpoint', 'handle'),
@@ -172,7 +261,7 @@ class WP_Auth_Rest_Routes {
             ),
         ));
 
-        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/class-otp-status-endpoint.php';
+        require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/endpoints/otp/class-otp-status-endpoint.php';
         register_rest_route('wp-auth/v1', '/otp-status', array(
             'methods' => 'GET',
             'callback' => array('WP_Auth_OTP_Status_Endpoint', 'handle'),

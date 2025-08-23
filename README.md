@@ -4,12 +4,25 @@ Modern JWT-based authentication system for WordPress with REST API, OTP verifica
 
 ## 🚀 Features
 
+### Core Authentication
 - **JWT Token Authentication** - Stateless, secure authentication
-- **Complete REST API** - 18+ endpoints for authentication management  
+- **Complete REST API** - 20+ endpoints for authentication management  
 - **OTP Security** - Email-based verification system
 - **Mobile Ready** - Perfect for React Native, Flutter apps
 - **Headless Support** - Ideal for Next.js, Nuxt.js projects
-- **Developer Friendly** - Comprehensive documentation and examples
+
+### 🆕 3-Step Registration Process
+- **Enhanced Security** - Email verification before account creation
+- **Step-by-Step Flow** - Guided registration process
+- **Session Management** - Secure 30-minute registration sessions
+- **Spam Prevention** - OTP verification prevents automated registrations
+- **Auto Login** - Seamless login after successful registration
+
+### Developer Experience
+- **Organized Codebase** - Endpoints organized in logical subfolders
+- **Comprehensive Docs** - Complete API documentation and examples
+- **Test Scripts** - Ready-to-use testing tools
+- **Backward Compatible** - All existing integrations continue to work
 
 ## 📋 Requirements
 
@@ -24,9 +37,36 @@ Modern JWT-based authentication system for WordPress with REST API, OTP verifica
 3. Configure JWT settings
 4. Start using the API endpoints
 
-## 📖 Documentation
+## � Registration Process
 
-Complete API documentation is available in the `API_Docs.md` file and admin settings page.
+### Traditional (Single-Step)
+```
+POST /wp-auth/v1/register
+```
+
+### New 3-Step Process
+```
+1. POST /wp-auth/v1/register/start      (Collect info + send OTP)
+2. POST /wp-auth/v1/register/verify-otp (Verify email)
+3. POST /wp-auth/v1/register/complete   (Set credentials + auto-login)
+```
+
+## 📁 Endpoint Organization
+
+```
+auth/          - Login, logout, token validation
+registration/  - All registration processes
+otp/          - OTP operations
+profile/      - User profile management
+security/     - Security and admin features
+```
+
+## �📖 Documentation
+
+- **[Complete API Documentation](./API_Docs.md)** - All endpoints with examples
+- **[3-Step Registration Guide](./docs/3-step-registration.md)** - Detailed registration process
+- **[Endpoint Organization](./docs/endpoint-organization.md)** - Codebase structure
+- **[Changelog](./CHANGELOG.md)** - Version history and updates
 
 ## 🔗 Links
 
