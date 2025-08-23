@@ -46,9 +46,10 @@ class WP_Auth_API_Endpoints {
                     'type' => 'string',
                     'sanitize_callback' => 'sanitize_email',
                 ),
-                'reset_key' => array(
+                'otp' => array(
                     'required' => true,
                     'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
                 ),
                 'new_password' => array(
                     'required' => true,
@@ -57,12 +58,24 @@ class WP_Auth_API_Endpoints {
             ),
         ));
         
+        // Change password request endpoint (sends OTP)
+        register_rest_route('wp-auth/v1', '/change-password-request', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'change_password_request'),
+            'permission_callback' => array('WP_Auth_JWT_Permission', 'permission_check'),
+        ));
+        
         // Change password endpoint
         register_rest_route('wp-auth/v1', '/change-password', array(
             'methods' => 'POST',
             'callback' => array($this, 'change_password'),
             'permission_callback' => array('WP_Auth_JWT_Permission', 'permission_check'),
             'args' => array(
+                'otp' => array(
+                    'required' => true,
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
                 'current_password' => array(
                     'required' => true,
                     'type' => 'string',
@@ -118,7 +131,7 @@ class WP_Auth_API_Endpoints {
     }
     
     /**
-     * Password reset request endpoint
+     * Password reset request endpoint - sends OTP for verification
      */
     public function password_reset_request($request) {
         $email = $request->get_param('email');
@@ -140,38 +153,26 @@ class WP_Auth_API_Endpoints {
             );
         }
         
-        // Generate reset key
-        $reset_key = get_password_reset_key($user);
-        if (is_wp_error($reset_key)) {
-            return $reset_key;
+        // Use OTP handler to send OTP for password reset
+        if (!class_exists('WP_Auth_OTP_Handler')) {
+            require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-otp-handler.php';
         }
         
-        // Send reset email
-        $reset_url = network_site_url("wp-login.php?action=rp&key=$reset_key&login=" . rawurlencode($user->user_login), 'login');
+        $otp_handler = new WP_Auth_OTP_Handler();
+        $result = $otp_handler->send_otp($email, 'password_reset');
         
-        $message = sprintf(
-            __('Someone has requested a password reset for the following account: %s', 'wp-authenticator'),
-            network_home_url()
-        ) . "\r\n\r\n";
-        $message .= sprintf(__('Username: %s', 'wp-authenticator'), $user->user_login) . "\r\n\r\n";
-        $message .= __('If this was a mistake, just ignore this email and nothing will happen.', 'wp-authenticator') . "\r\n\r\n";
-        $message .= __('To reset your password, visit the following address:', 'wp-authenticator') . "\r\n\r\n";
-        $message .= $reset_url . "\r\n";
-        
-        $title = sprintf(__('[%s] Password Reset', 'wp-authenticator'), wp_specialchars_decode(get_option('blogname'), ENT_QUOTES));
-        
-        if (wp_mail($user->user_email, $title, $message)) {
-            return array(
-                'success' => true,
-                'message' => __('Password reset email sent successfully.', 'wp-authenticator')
-            );
-        } else {
-            return new WP_Error(
-                'email_failed',
-                __('Failed to send password reset email.', 'wp-authenticator'),
-                array('status' => 500)
-            );
+        if (is_wp_error($result)) {
+            return $result;
         }
+        
+        return array(
+            'success' => true,
+            'message' => __('OTP sent to your email for password reset verification.', 'wp-authenticator'),
+            'data' => array(
+                'email' => $email,
+                'expires_in' => 300 // 5 minutes
+            )
+        );
     }
     
     /**
@@ -179,23 +180,34 @@ class WP_Auth_API_Endpoints {
      */
     public function password_reset($request) {
         $email = $request->get_param('email');
-        $reset_key = $request->get_param('reset_key');
+        $otp = $request->get_param('otp');
         $new_password = $request->get_param('new_password');
         
         $user = get_user_by('email', $email);
         if (!$user) {
             return new WP_Error(
                 'user_not_found',
-                __('Invalid reset key or email.', 'wp-authenticator'),
-                array('status' => 400)
+                __('No user found with this email address.', 'wp-authenticator'),
+                array('status' => 404)
             );
         }
         
-        $check_key = check_password_reset_key($reset_key, $user->user_login);
-        if (is_wp_error($check_key)) {
+        // Verify OTP
+        if (!class_exists('WP_Auth_OTP_Handler')) {
+            require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-otp-handler.php';
+        }
+        
+        $otp_handler = new WP_Auth_OTP_Handler();
+        $otp_verification = $otp_handler->verify_otp($email, $otp, 'password_reset');
+        
+        if (is_wp_error($otp_verification)) {
+            return $otp_verification;
+        }
+        
+        if (!$otp_verification) {
             return new WP_Error(
-                'invalid_key',
-                __('Invalid or expired reset key.', 'wp-authenticator'),
+                'invalid_otp',
+                __('Invalid or expired OTP code.', 'wp-authenticator'),
                 array('status' => 400)
             );
         }
@@ -208,7 +220,12 @@ class WP_Auth_API_Endpoints {
             );
         }
         
-        reset_password($user, $new_password);
+        // Reset password
+        wp_set_password($new_password, $user->ID);
+        
+        // Clear any existing auth tokens to force re-login
+        delete_user_meta($user->ID, 'wp_auth_token');
+        delete_user_meta($user->ID, 'wp_auth_token_expires');
         
         return array(
             'success' => true,
@@ -216,6 +233,52 @@ class WP_Auth_API_Endpoints {
         );
     }
     
+    /**
+     * Change password request endpoint - sends OTP for verification
+     */
+    public function change_password_request($request) {
+        $jwt_handler = new WP_Auth_JWT_Handler();
+        $token = $jwt_handler->get_token_from_header();
+        if (!$token) {
+            return new WP_Error('no_token', __('No token provided.', 'wp-authenticator'), array('status' => 401));
+        }
+        $payload = $jwt_handler->validate_token($token);
+        if (is_wp_error($payload)) {
+            return $payload;
+        }
+        $user_id = $payload['user_id'];
+        
+        $user = get_userdata($user_id);
+        if (!$user) {
+            return new WP_Error(
+                'user_not_found',
+                __('User not found.', 'wp-authenticator'),
+                array('status' => 404)
+            );
+        }
+        
+        // Send OTP to user's email
+        if (!class_exists('WP_Auth_OTP_Handler')) {
+            require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-otp-handler.php';
+        }
+        
+        $otp_handler = new WP_Auth_OTP_Handler();
+        $result = $otp_handler->send_otp($user->user_email, 'change_password');
+        
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        
+        return array(
+            'success' => true,
+            'message' => __('OTP sent to your email for password change verification.', 'wp-authenticator'),
+            'data' => array(
+                'email' => $user->user_email,
+                'expires_in' => 300 // 5 minutes
+            )
+        );
+    }
+
     /**
      * Change password endpoint
      */
@@ -230,6 +293,7 @@ class WP_Auth_API_Endpoints {
             return $payload;
         }
         $user_id = $payload['user_id'];
+        $otp = $request->get_param('otp');
         $current_password = $request->get_param('current_password');
         $new_password = $request->get_param('new_password');
         
@@ -251,6 +315,26 @@ class WP_Auth_API_Endpoints {
             );
         }
         
+        // Verify OTP
+        if (!class_exists('WP_Auth_OTP_Handler')) {
+            require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-otp-handler.php';
+        }
+        
+        $otp_handler = new WP_Auth_OTP_Handler();
+        $otp_verification = $otp_handler->verify_otp($user->user_email, $otp, 'change_password');
+        
+        if (is_wp_error($otp_verification)) {
+            return $otp_verification;
+        }
+        
+        if (!$otp_verification) {
+            return new WP_Error(
+                'invalid_otp',
+                __('Invalid or expired OTP code.', 'wp-authenticator'),
+                array('status' => 400)
+            );
+        }
+        
         if (strlen($new_password) < 6) {
             return new WP_Error(
                 'weak_password',
@@ -267,7 +351,7 @@ class WP_Auth_API_Endpoints {
         
         return array(
             'success' => true,
-            'message' => __('Password changed successfully.', 'wp-authenticator')
+            'message' => __('Password changed successfully. Please login again.', 'wp-authenticator')
         );
     }
     

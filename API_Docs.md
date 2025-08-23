@@ -2,20 +2,34 @@
 
 ## Overview
 This document provides comprehensive information about the WP Authenticator REST API endpoints.
+
 ## Base URL
 ```
+https://your-site.com/wp-json/wp-auth/v1
 ```
 
+## Authentication
+Most endpoints require JWT token authentication via Authorization header:
+```
 Authorization: Bearer YOUR_JWT_TOKEN
+```
 
-## Endpoints
+---
+
+## Core Authentication Endpoints
 
 ### 1. Login
-**Endpoint:** `POST /login`
-**Description:** Authenticate user and receive JWT token
+**Endpoint:** `POST /login`  
+**Description:** Authenticate user and receive JWT token  
+**Authentication Required:** No
 
 #### Request Body
-  "password": "string"
+```json
+{
+  "username": "string",   // required
+  "password": "string",   // required
+  "remember": false       // optional, boolean
+}
 ```
 
 #### Success Response (200)
@@ -23,11 +37,13 @@ Authorization: Bearer YOUR_JWT_TOKEN
 {
   "success": true,
   "message": "Login successful",
-    "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
-    "user": {
-      "id": 1,
-    }
+  "token": "JWT_TOKEN_HERE",
+  "user": {
+    "id": 1,
+    "username": "john_doe",
+    "email": "john@example.com"
   }
+}
 ```
 
 #### Error Responses
@@ -36,100 +52,141 @@ Authorization: Bearer YOUR_JWT_TOKEN
 {
   "success": false,
   "message": "Username and password are required"
+}
+```
 - **401 Unauthorized**
 ```json
 {
   "success": false,
+  "message": "Invalid credentials"
+}
+```
 
 ### 2. Register
-**Description:** Register a new user
+**Endpoint:** `POST /register`  
+**Description:** Register a new user  
 **Authentication Required:** No
 
 #### Request Body
 ```json
 {
-  "email": "string",
-  "password": "string"
-}
-```json
-{
-  "message": "User registered successfully",
-  "data": {
-    "user_id": 123,
+  "username": "string",      // required
+  "email": "string",         // required
+  "password": "string",      // required
+  "first_name": "string",    // optional
+  "last_name": "string"      // optional
 }
 ```
 
+#### Success Response (200)
+```json
+{
+  "success": true,
+  "message": "User registered successfully",
+  "user_id": 123
+}
+```
+
+#### Error Responses
 - **400 Bad Request**
 ```json
+{
+  "success": false,
+  "message": "Username, email and password are required"
 }
-
+```
 - **409 Conflict**
 ```json
 {
+  "success": false,
+  "message": "Username or email already exists"
 }
 ```
-**Description:** Logout user and blacklist JWT token
+
+### 3. Logout
+**Endpoint:** `POST /logout`  
+**Description:** Logout user and blacklist JWT token  
+**Authentication Required:** Yes
 
 #### Request Headers
 ```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
 
 #### Success Response (200)
+```json
+{
+  "success": true,
   "message": "Logout successful"
 }
+```
 
 #### Error Responses
 - **401 Unauthorized**
 ```json
+{
   "success": false,
   "message": "Invalid or expired token"
-### 4. User Profile
-**Description:** Get current user profile information
+}
+```
+
+### 4. User Profile (GET)
+**Endpoint:** `GET /profile`  
+**Description:** Get current user profile information  
 **Authentication Required:** Yes
 
 #### Request Headers
+```
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
+
+#### Success Response (200)
+```json
+{
   "success": true,
   "data": {
     "id": 1,
+    "username": "john_doe",
     "email": "john@example.com",
-    "display_name": "John Doe",
+    "first_name": "John",
+    "last_name": "Doe",
+    "description": "User bio"
   }
 }
+```
 
-#### Error Responses
-- **401 Unauthorized**
-```json
-  "success": false,
-  "message": "Invalid or expired token"
-### 5. Validate Token
-**Description:** Validate JWT token
+### 5. Update Profile
+**Endpoint:** `PUT /profile`  
+**Description:** Update current user profile  
 **Authentication Required:** Yes
 
 #### Request Headers
+```
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
-{
-  "message": "Token is valid",
-  "data": {
-    "user_id": 1,
-  }
-}
-```
 
-#### Error Responses
-- **401 Unauthorized**
+#### Request Body
 ```json
 {
-  "success": false,
-  "message": "Invalid or expired token"
+  "first_name": "string",    // optional
+  "last_name": "string",     // optional
+  "email": "string",         // optional
+  "description": "string"    // optional
 }
 ```
 
-### 6. Security Stats
-**Endpoint:** `GET /security-stats`
-**Description:** Get security statistics
-**Authentication Required:** Yes (Admin only)
+#### Success Response (200)
+```json
+{
+  "success": true,
+  "message": "Profile updated successfully"
+}
+```
+
+### 6. Validate Token
+**Endpoint:** `GET /validate-token`  
+**Description:** Validate JWT token  
+**Authentication Required:** No (token passed in header)
 
 #### Request Headers
 ```
@@ -140,11 +197,8 @@ Authorization: Bearer YOUR_JWT_TOKEN
 ```json
 {
   "success": true,
-  "data": {
-    "failed_login_attempts": 5,
-    "blocked_ips": ["192.168.1.100", "10.0.0.1"],
-    "last_security_scan": "2023-12-01 10:30:00"
-  }
+  "message": "Token is valid",
+  "user_id": 1
 }
 ```
 
@@ -157,24 +211,20 @@ Authorization: Bearer YOUR_JWT_TOKEN
 }
 ```
 
-- **403 Forbidden**
-```json
-{
-  "success": false,
-  "message": "Admin access required"
-}
-```
+---
+
+## OTP Endpoints
 
 ### 7. Verify OTP
-**Endpoint:** `POST /verify-otp`
-**Description:** Verify OTP code for two-factor authentication
+**Endpoint:** `POST /verify-otp`  
+**Description:** Verify OTP code for two-factor authentication  
 **Authentication Required:** No
 
 #### Request Body
 ```json
 {
-  "user_id": "integer",
-  "otp_code": "string"
+  "email": "string",     // required
+  "otp": "string"        // required
 }
 ```
 
@@ -191,10 +241,9 @@ Authorization: Bearer YOUR_JWT_TOKEN
 ```json
 {
   "success": false,
-  "message": "User ID and OTP code are required"
+  "message": "Email and OTP are required"
 }
 ```
-
 - **401 Unauthorized**
 ```json
 {
@@ -203,23 +252,15 @@ Authorization: Bearer YOUR_JWT_TOKEN
 }
 ```
 
-- **410 Gone**
-```json
-{
-  "success": false,
-  "message": "OTP code has expired"
-}
-```
-
 ### 8. Resend OTP
-**Endpoint:** `POST /resend-otp`
-**Description:** Resend OTP code to user
+**Endpoint:** `POST /resend-otp`  
+**Description:** Resend OTP code to user  
 **Authentication Required:** No
 
 #### Request Body
 ```json
 {
-  "user_id": "integer"
+  "email": "string"      // required
 }
 ```
 
@@ -236,18 +277,9 @@ Authorization: Bearer YOUR_JWT_TOKEN
 ```json
 {
   "success": false,
-  "message": "User ID is required"
+  "message": "Email is required"
 }
 ```
-
-- **404 Not Found**
-```json
-{
-  "success": false,
-  "message": "User not found"
-}
-```
-
 - **429 Too Many Requests**
 ```json
 {
@@ -257,41 +289,229 @@ Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
 ### 9. OTP Status
-**Endpoint:** `GET /otp-status/{user_id}`
-**Description:** Get OTP verification status for a user
+**Endpoint:** `GET /otp-status`  
+**Description:** Get OTP verification status for a user  
 **Authentication Required:** No
 
-#### URL Parameters
-- `user_id` (integer): The ID of the user
+#### Query Parameters
+- `email` (string, required): User's email address
 
 #### Success Response (200)
 ```json
 {
   "success": true,
   "data": {
-    "is_verified": true,
-    "last_sent": "2023-12-01 10:30:00",
-    "attempts_remaining": 3
+    "otp_verified": true,
+    "otp_expires_at": "2025-08-23T15:30:00Z"
+  }
+}
+```
+
+---
+
+## Security & Admin Endpoints
+
+### 10. Security Stats
+**Endpoint:** `GET /security/stats`  
+**Description:** Get security statistics  
+**Authentication Required:** Yes (Admin only)
+
+#### Request Headers
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+#### Success Response (200)
+```json
+{
+  "success": true,
+  "data": {
+    "total_users": 150,
+    "active_sessions": 45,
+    "failed_logins_24h": 12,
+    "blocked_ips": 3
   }
 }
 ```
 
 #### Error Responses
-- **400 Bad Request**
+- **403 Forbidden**
 ```json
 {
   "success": false,
-  "message": "Invalid user ID"
+  "message": "Admin access required"
 }
 ```
 
-- **404 Not Found**
+---
+
+## Additional Endpoints (WP_Auth_API_Endpoints)
+
+### 11. Password Reset Request
+**Endpoint:** `POST /password-reset-request`  
+**Description:** Request password reset via OTP  
+**Authentication Required:** No
+
+#### Request Body
 ```json
 {
-  "success": false,
-  "message": "User not found"
+  "email": "string"      // required
 }
 ```
+
+#### Success Response (200)
+```json
+{
+  "success": true,
+  "message": "OTP sent to your email for password reset verification.",
+  "data": {
+    "email": "user@example.com",
+    "expires_in": 300
+  }
+}
+```
+
+### 12. Password Reset
+**Endpoint:** `POST /password-reset`  
+**Description:** Reset password using OTP verification  
+**Authentication Required:** No
+
+#### Request Body
+```json
+{
+  "email": "string",         // required
+  "otp": "string",           // required - 6-digit code
+  "new_password": "string"   // required
+}
+```
+
+#### Success Response (200)
+```json
+{
+  "success": true,
+  "message": "Password reset successfully"
+}
+```
+
+### 13. Change Password Request
+**Endpoint:** `POST /change-password-request`  
+**Description:** Request OTP for password change verification  
+**Authentication Required:** Yes
+
+#### Request Headers
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+#### Success Response (200)
+```json
+{
+  "success": true,
+  "message": "OTP sent to your email for password change verification.",
+  "data": {
+    "email": "user@example.com",
+    "expires_in": 300
+  }
+}
+```
+
+### 14. Change Password
+**Endpoint:** `POST /change-password`  
+**Description:** Change current password with OTP verification  
+**Authentication Required:** Yes
+
+#### Request Headers
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+#### Request Body
+```json
+{
+  "otp": "string",               // required - 6-digit code
+  "current_password": "string",  // required
+  "new_password": "string"       // required
+}
+```
+
+#### Success Response (200)
+```json
+{
+  "success": true,
+  "message": "Password changed successfully. Please login again."
+}
+```
+
+### 15. Refresh Token
+**Endpoint:** `POST /refresh-token`  
+**Description:** Refresh JWT token  
+**Authentication Required:** No
+
+#### Request Headers
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+#### Success Response (200)
+```json
+{
+  "success": true,
+  "token": "NEW_JWT_TOKEN",
+  "expires_in": 3600
+}
+```
+
+### 16. User Roles
+**Endpoint:** `GET /user/roles`  
+**Description:** Get current user's roles  
+**Authentication Required:** Yes
+
+#### Request Headers
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+#### Success Response (200)
+```json
+{
+  "success": true,
+  "roles": ["subscriber", "editor"]
+}
+```
+
+### 17. Check Username Availability
+**Endpoint:** `GET /check-username`  
+**Description:** Check if username is available  
+**Authentication Required:** No
+
+#### Query Parameters
+- `username` (string, required): Username to check
+
+#### Success Response (200)
+```json
+{
+  "success": true,
+  "available": true
+}
+```
+
+### 18. Check Email Availability
+**Endpoint:** `GET /check-email`  
+**Description:** Check if email is available  
+**Authentication Required:** No
+
+#### Query Parameters
+- `email` (string, required): Email to check
+
+#### Success Response (200)
+```json
+{
+  "success": true,
+  "available": false
+}
+```
+
+---
 
 ## Error Handling
 
@@ -318,201 +538,150 @@ The API implements rate limiting to prevent abuse:
 - JWT-based authentication with token blacklisting
 - Password validation and strength requirements
 - OTP-based two-factor authentication
-- Rate limiting and IP blocking (configurable)
-- Secure token storage and validation
-
-## Development Notes
-
-- All timestamps are in UTC format
-- User IDs are always integers
-- Tokens expire after 24 hours by default (configurable)
-- OTP codes expire after 5 minutes
-- All sensitive data is properly sanitized and validated
+- Rate limiting on sensitive endpoints
+- Admin-only access controls for security endpoints
 
 ---
 
-## 1. Login
-- **Endpoint:** `/login`
-## 1. Login
-**Postman Example:**
-- Method: POST
-- URL: `{{base_url}}/login`
-- Headers:
-  - Content-Type: application/json
-- Body (raw, JSON):
-  {
-    "username": "your_username",
-    "password": "your_password",
-    "remember": true
-  }
-  - `remember` (boolean, optional, default: false)
-- **Response:**
-## 2. Register
-**Postman Example:**
-- Method: POST
-- URL: `{{base_url}}/register`
-- Headers:
-  - Content-Type: application/json
-- Body (raw, JSON):
-  {
-    "username": "your_username",
-    "email": "your_email@example.com",
-    "password": "your_password",
-    "first_name": "First",
-    "last_name": "Last"
-  }
----
+## Postman Collection Examples
 
-## 3. Logout
-**Postman Example:**
-- Method: POST
-- URL: `{{base_url}}/logout`
-- Headers:
-  - Authorization: Bearer <your_jwt_token>
-  - Content-Type: application/json
-- Body (raw, JSON):
-  {
-    "token": "<your_jwt_token>",
-    "refresh_token": "<your_refresh_token>"
-  }
-  - `username` (string, required)
-  - `email` (string, required)
-## 4. Profile
-**Postman Example (GET):**
-- Method: GET
-- URL: `{{base_url}}/profile`
-- Headers:
-  - Authorization: Bearer <your_jwt_token>
-  - Content-Type: application/json
+### Environment Variables
+Create a Postman environment with these variables:
+- `base_url`: https://your-site.com/wp-json/wp-auth/v1
+- `jwt_token`: (will be set after login)
 
-**Postman Example (PUT):**
-- Method: PUT
-- URL: `{{base_url}}/profile`
-- Headers:
-  - Authorization: Bearer <your_jwt_token>
-  - Content-Type: application/json
-- Body (raw, JSON):
-  {
-    "first_name": "First",
-    "last_name": "Last",
-    "email": "your_email@example.com",
-    "description": "Profile description"
-  }
----
+### Login Example
+```
+POST {{base_url}}/login
+Content-Type: application/json
 
-## 5. Validate Token
-**Postman Example:**
-- Method: GET
-- URL: `{{base_url}}/validate-token?token=<your_jwt_token>`
-- Headers:
-  - Authorization: Bearer <your_jwt_token>
-  - Content-Type: application/json
-- **Parameters:**
-  - `token` (string, optional)
-## 6. Security Stats
-**Postman Example:**
-- Method: GET
-- URL: `{{base_url}}/security/stats`
-- Headers:
-  - Authorization: Bearer <admin_jwt_token>
-  - Content-Type: application/json
+{
+  "username": "john_doe",
+  "password": "password123",
+  "remember": true
+}
+```
 
----
-## 7. Verify OTP
-**Postman Example:**
-- Method: POST
-- URL: `{{base_url}}/verify-otp`
-- Headers:
-  - Content-Type: application/json
-- Body (raw, JSON):
-  {
-    "email": "your_email@example.com",
-    "otp": "123456"
-  }
-- **Permission:** User must be logged in
-- **Response:**
-## 8. Resend OTP
-**Postman Example:**
-- Method: POST
-- URL: `{{base_url}}/resend-otp`
-- Headers:
-  - Content-Type: application/json
-- Body (raw, JSON):
-  {
-    "email": "your_email@example.com"
-  }
-- **Method:** PUT
-- **Permission:** User must be logged in
-## 9. OTP Status
-**Postman Example:**
-- Method: GET
-- URL: `{{base_url}}/otp-status?email=your_email@example.com`
-- Headers:
-  - Content-Type: application/json
-  - `description` (string, optional)
-- **Response:**
-  - `success` (bool)
-  - `message` (string)
-  - `data`: updated user info
+### Register Example
+```
+POST {{base_url}}/register
+Content-Type: application/json
+
+{
+  "username": "new_user",
+  "email": "user@example.com",
+  "password": "password123",
+  "first_name": "John",
+  "last_name": "Doe"
+}
+```
+
+### Get Profile Example
+```
+GET {{base_url}}/profile
+Authorization: Bearer {{jwt_token}}
+```
+
+### Update Profile Example
+```
+PUT {{base_url}}/profile
+Authorization: Bearer {{jwt_token}}
+Content-Type: application/json
+
+{
+  "first_name": "Updated",
+  "last_name": "Name",
+  "description": "New bio"
+}
+```
+
+### Verify OTP Example
+```
+POST {{base_url}}/verify-otp
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "otp": "123456"
+}
+```
+
+### Password Reset Request Example
+```
+POST {{base_url}}/password-reset-request
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+```
+
+### Password Reset Example
+```
+POST {{base_url}}/password-reset
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "otp": "123456",
+  "new_password": "newpassword123"
+}
+```
+
+### Change Password Request Example
+```
+POST {{base_url}}/change-password-request
+Authorization: Bearer {{jwt_token}}
+Content-Type: application/json
+```
+
+### Change Password Example
+```
+POST {{base_url}}/change-password
+Authorization: Bearer {{jwt_token}}
+Content-Type: application/json
+
+{
+  "otp": "123456",
+  "current_password": "oldpassword",
+  "new_password": "newpassword123"
+}
+```
+
+### Check Username Availability Example
+```
+GET {{base_url}}/check-username?username=new_username
+```
+
+### Security Stats Example (Admin only)
+```
+GET {{base_url}}/security/stats
+Authorization: Bearer {{admin_jwt_token}}
+```
 
 ---
 
-## 5. Validate Token
-- **Endpoint:** `/validate-token`
-- **Method:** GET
-- **Parameters:**
-  - `token` (string, required)
-- **Response:**
-  - `success` (bool)
-  - `message` (string)
-  - `data`: user_id, expires
+## Implementation Notes
 
----
+1. **Route Registration**: Routes are registered in two classes:
+   - `WP_Auth_Rest_Routes`: Core authentication endpoints
+   - `WP_Auth_API_Endpoints`: Additional utility endpoints
 
-## 6. Security Stats
-- **Endpoint:** `/security/stats`
-- **Method:** GET
-- **Permission:** Admin only (`manage_options`)
-- **Response:**
-  - `success` (bool)
-  - `data`: security stats
+2. **JWT Token Format**: Tokens are issued using Firebase JWT library and include:
+   - User ID
+   - Expiration time
+   - Issue time
+   - Custom claims (roles, etc.)
 
----
+3. **OTP Implementation**: 
+   - 6-digit numeric codes
+   - 5-minute expiration
+   - Email delivery
+   - Rate limited to prevent abuse
 
-## 7. Verify OTP
-- **Endpoint:** `/verify-otp`
-- **Method:** POST
-- **Parameters:**
-  - `email` (string, required)
-  - `otp` (string, required)
-- **Response:**
-  - `success` (bool)
-  - `message` (string)
-  - `data`: verification result
+4. **Permission Checks**:
+   - `__return_true`: Public access
+   - `WP_Auth_JWT_Permission::permission_check`: Requires valid JWT
+   - `current_user_can('manage_options')`: Admin only
 
----
-
-## 8. Resend OTP
-- **Endpoint:** `/resend-otp`
-- **Method:** POST
-- **Parameters:**
-  - `email` (string, required)
-- **Response:**
-  - `success` (bool)
-  - `message` (string)
-  - `data`: email, OTP expiry
-
----
-
-## 9. OTP Status
-- **Endpoint:** `/otp-status`
-- **Method:** GET
-- **Parameters:**
-  - `email` (string, required)
-- **Response:**
-  - `success` (bool)
-  - `data`: OTP status
-
----
-
-**Note:** All endpoints return errors in standard WordPress REST format with error codes and messages.
+5. **Data Validation**: All endpoints use WordPress sanitization and validation functions for security.

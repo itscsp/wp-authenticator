@@ -4,12 +4,18 @@ if (!defined('ABSPATH')) { exit; }
 class WP_Authenticator {
     public function __construct() {
         add_action('init', array($this, 'init'));
+        
         // Register REST API routes
         require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'routes/rest-routes.php';
         add_action('rest_api_init', array('WP_Auth_Rest_Routes', 'register'));
+        
+        // Initialize additional API endpoints
+        new WP_Auth_API_Endpoints();
+        
         // Security enhancements
         add_action('wp_login_failed', array($this, 'login_failed_handler'));
         add_filter('authenticate', array($this, 'block_failed_login_attempts'), 30, 3);
+        
         // Always register admin menu
         if (is_admin()) {
             require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-admin-settings.php';

@@ -27,9 +27,16 @@ class WP_Auth_OTP_Handler {
     }
     
     /**
-     * Generate OTP for user registration
+     * Generate and send OTP for various purposes
      */
-    public function generate_otp($email, $user_data = array()) {
+    public function send_otp($email, $purpose = 'registration', $user_data = array()) {
+        return $this->generate_otp($email, $user_data, $purpose);
+    }
+    
+    /**
+     * Generate OTP for user registration or other purposes
+     */
+    public function generate_otp($email, $user_data = array(), $purpose = 'registration') {
         // Generate random 6-digit OTP
         $otp = sprintf('%06d', mt_rand(100000, 999999));
         $expires = time() + $this->otp_expiry;
@@ -39,37 +46,47 @@ class WP_Auth_OTP_Handler {
             'otp' => $otp,
             'email' => sanitize_email($email),
             'user_data' => $user_data,
+            'purpose' => $purpose,
             'expires' => $expires,
             'attempts' => 0,
             'created' => time()
         );
         
-        // Store in transients (WordPress cache)
-        $transient_key = 'wp_auth_otp_' . md5($email);
+        // Store in transients (WordPress cache) - use purpose-specific key
+        $transient_key = 'wp_auth_otp_' . $purpose . '_' . md5($email);
         set_transient($transient_key, $otp_data, $this->otp_expiry);
         
         // Also store in options as backup
-        $option_key = 'wp_auth_otp_' . md5($email);
+        $option_key = 'wp_auth_otp_' . $purpose . '_' . md5($email);
         update_option($option_key, $otp_data);
         
         // Send OTP via email
-        $email_sent = $this->send_otp_email($email, $otp);
+        $email_sent = $this->send_otp_email($email, $otp, $purpose);
+        
+        if (!$email_sent) {
+            return new WP_Error(
+                'email_failed',
+                __('Failed to send OTP email.', 'wp-authenticator'),
+                array('status' => 500)
+            );
+        }
         
         return array(
             'success' => $email_sent,
             'otp' => $otp, // Remove this in production - only for testing
             'expires' => $expires,
-            'email' => $email
+            'email' => $email,
+            'purpose' => $purpose
         );
     }
     
     /**
-     * Verify OTP and complete user registration
+     * Verify OTP and complete user registration or other operations
      */
-    public function verify_otp($email, $provided_otp) {
+    public function verify_otp($email, $provided_otp, $purpose = 'registration') {
         $email = sanitize_email($email);
-        $transient_key = 'wp_auth_otp_' . md5($email);
-        $option_key = 'wp_auth_otp_' . md5($email);
+        $transient_key = 'wp_auth_otp_' . $purpose . '_' . md5($email);
+        $option_key = 'wp_auth_otp_' . $purpose . '_' . md5($email);
         
         // Get OTP data
         $otp_data = get_transient($transient_key);
@@ -78,60 +95,79 @@ class WP_Auth_OTP_Handler {
         }
         
         if (!$otp_data) {
-            return array(
-                'success' => false,
-                'message' => 'OTP not found or expired. Please request a new one.'
+            return new WP_Error(
+                'otp_not_found',
+                __('OTP not found or expired.', 'wp-authenticator'),
+                array('status' => 400)
             );
         }
         
-        // Check if OTP expired
+        // Check if OTP has expired
         if (time() > $otp_data['expires']) {
-            $this->cleanup_otp($email);
-            return array(
-                'success' => false,
-                'message' => 'OTP has expired. Please request a new one.'
+            // Clean up expired OTP
+            delete_transient($transient_key);
+            delete_option($option_key);
+            return new WP_Error(
+                'otp_expired',
+                __('OTP has expired.', 'wp-authenticator'),
+                array('status' => 400)
             );
         }
         
-        // Check attempts
+        // Check if max attempts exceeded
         if ($otp_data['attempts'] >= $this->max_attempts) {
-            $this->cleanup_otp($email);
-            return array(
-                'success' => false,
-                'message' => 'Maximum OTP attempts exceeded. Please request a new one.'
+            // Clean up OTP after max attempts
+            delete_transient($transient_key);
+            delete_option($option_key);
+            return new WP_Error(
+                'max_attempts_exceeded',
+                __('Maximum OTP verification attempts exceeded.', 'wp-authenticator'),
+                array('status' => 400)
             );
         }
         
         // Verify OTP
-        if ($provided_otp !== $otp_data['otp']) {
+        if ($otp_data['otp'] !== $provided_otp) {
             // Increment attempts
             $otp_data['attempts']++;
             set_transient($transient_key, $otp_data, $this->otp_expiry);
             update_option($option_key, $otp_data);
             
-            $remaining = $this->max_attempts - $otp_data['attempts'];
-            return array(
-                'success' => false,
-                'message' => "Invalid OTP. {$remaining} attempts remaining."
+            return new WP_Error(
+                'invalid_otp',
+                __('Invalid OTP code.', 'wp-authenticator'),
+                array('status' => 400)
             );
         }
         
-        // OTP is valid - create the user
-        $user_result = $this->create_verified_user($otp_data['user_data']);
+        // OTP is valid - clean up
+        delete_transient($transient_key);
+        delete_option($option_key);
         
-        // Clean up OTP data
-        $this->cleanup_otp($email);
+        // For registration, create user account
+        if ($purpose === 'registration' && !empty($otp_data['user_data'])) {
+            $user_id = $this->create_user_account($otp_data['user_data']);
+            if (is_wp_error($user_id)) {
+                return $user_id;
+            }
+            return array(
+                'success' => true,
+                'user_id' => $user_id,
+                'purpose' => $purpose
+            );
+        }
         
-        return $user_result;
+        // For other purposes (password reset, change password), just return success
+        return true;
     }
     
     /**
      * Resend OTP
      */
-    public function resend_otp($email) {
+    public function resend_otp($email, $purpose = 'registration') {
         $email = sanitize_email($email);
-        $transient_key = 'wp_auth_otp_' . md5($email);
-        $option_key = 'wp_auth_otp_' . md5($email);
+        $transient_key = 'wp_auth_otp_' . $purpose . '_' . md5($email);
+        $option_key = 'wp_auth_otp_' . $purpose . '_' . md5($email);
         
         // Get existing OTP data
         $otp_data = get_transient($transient_key);
@@ -140,21 +176,39 @@ class WP_Auth_OTP_Handler {
         }
         
         if (!$otp_data) {
-            return array(
-                'success' => false,
-                'message' => 'No pending OTP verification found.'
+            return new WP_Error(
+                'no_pending_otp',
+                __('No pending OTP verification found.', 'wp-authenticator'),
+                array('status' => 404)
             );
         }
         
         // Generate new OTP
-        return $this->generate_otp($email, $otp_data['user_data']);
+        return $this->generate_otp($email, $otp_data['user_data'], $purpose);
     }
     
     /**
      * Send OTP via email
      */
-    private function send_otp_email($email, $otp) {
-        $subject = 'Email Verification - Your OTP Code';
+    private function send_otp_email($email, $otp, $purpose = 'registration') {
+        // Customize subject and message based on purpose
+        switch ($purpose) {
+            case 'password_reset':
+                $subject = 'Password Reset - Your OTP Code';
+                $title = 'Password Reset Request';
+                $description = 'You have requested to reset your password. Please use the following OTP to proceed:';
+                break;
+            case 'change_password':
+                $subject = 'Password Change - Your OTP Code';
+                $title = 'Password Change Verification';
+                $description = 'You have requested to change your password. Please use the following OTP to verify:';
+                break;
+            default:
+                $subject = 'Email Verification - Your OTP Code';
+                $title = 'Email Verification Required';
+                $description = 'Thank you for registering! Please use the following OTP to complete your registration:';
+                break;
+        }
         
         $message = "
         <html>
@@ -168,19 +222,19 @@ class WP_Auth_OTP_Handler {
         </head>
         <body>
             <div class='otp-container'>
-                <h2>Email Verification Required</h2>
-                <p>Thank you for registering! Please use the following OTP to complete your registration:</p>
+                <h2>{$title}</h2>
+                <p>{$description}</p>
                 
                 <div class='otp-code'>{$otp}</div>
                 
                 <p><strong>Important:</strong></p>
                 <ul>
-                    <li>This OTP is valid for 10 minutes only</li>
+                    <li>This OTP is valid for 5 minutes only</li>
                     <li>You have 3 attempts to enter the correct OTP</li>
                     <li>Do not share this code with anyone</li>
                 </ul>
                 
-                <p class='warning'>If you didn't request this registration, please ignore this email.</p>
+                <p class='warning'>If you didn't request this action, please ignore this email.</p>
                 
                 <hr>
                 <p><small>This is an automated message from " . get_bloginfo('name') . "</small></p>
@@ -199,7 +253,7 @@ class WP_Auth_OTP_Handler {
     /**
      * Create user after OTP verification
      */
-    private function create_verified_user($user_data) {
+    private function create_user_account($user_data) {
         // Validate required fields
         if (empty($user_data['username']) || empty($user_data['email']) || empty($user_data['password'])) {
             return array(
