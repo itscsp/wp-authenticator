@@ -159,7 +159,7 @@ Step 3: session cleaned up after account creation
 
 ---
 
-## Version 1.0.1 - Previous Release
+## Version 1.0.2 - Previous Release
 
 ### Features
 - Basic JWT authentication

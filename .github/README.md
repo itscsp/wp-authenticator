@@ -19,8 +19,8 @@ This repository uses GitHub Actions for automated testing, building, and releasi
 ### Automatic Release (Recommended)
 1. Create and push a version tag:
    ```bash
-   git tag v1.0.1
-   git push origin v1.0.1
+   git tag v1.0.2
+   git push origin v1.0.2
    ```
 2. GitHub Actions will automatically:
    - Build the plugin
@@ -31,7 +31,7 @@ This repository uses GitHub Actions for automated testing, building, and releasi
 1. Go to **Actions** tab in GitHub
 2. Select **Build and Release WP Authenticator**
 3. Click **Run workflow**
-4. Enter version number (e.g., v1.0.1)
+4. Enter version number (e.g., v1.0.2)
 5. Click **Run workflow**
 
 ## 📦 What Gets Built

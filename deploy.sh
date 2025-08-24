@@ -41,12 +41,12 @@ find vendor/ -name "test/" -type d -exec rm -rf {} + 2>/dev/null || true
 # Create zip package
 echo "📦 Creating plugin package..."
 cd ..
-zip -r wp-authenticator-v1.0.1.zip wp-authenticator/ -x "*.DS_Store*" "*__MACOSX*"
+zip -r wp-authenticator-v1.0.2.zip wp-authenticator/ -x "*.DS_Store*" "*__MACOSX*"
 
-echo "✅ Plugin package created: dist/wp-authenticator-v1.0.1.zip"
+echo "✅ Plugin package created: dist/wp-authenticator-v1.0.2.zip"
 echo ""
 echo "📋 Installation Instructions:"
-echo "1. Upload wp-authenticator-v1.0.1.zip to WordPress admin"
+echo "1. Upload wp-authenticator-v1.0.2.zip to WordPress admin"
 echo "2. Activate the plugin"
 echo "3. Configure JWT settings in WP Admin > WP Authenticator"
 echo ""

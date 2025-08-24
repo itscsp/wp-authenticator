@@ -4,7 +4,7 @@ Tags: authentication, jwt, rest-api, otp, security, mobile-app, headless
 Requires at least: 5.0
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -134,7 +134,7 @@ Yes! Comprehensive API documentation, Postman collections, and implementation ex
 
 == Changelog ==
 
-= 1.0.1 =
+= 1.0.2 =
 * Added OTP-based password reset functionality
 * Implemented password change with OTP verification
 * Enhanced security monitoring
@@ -153,7 +153,7 @@ Yes! Comprehensive API documentation, Postman collections, and implementation ex
 
 == Upgrade Notice ==
 
-= 1.0.1 =
+= 1.0.2 =
 Major security enhancement with OTP-based password management. Recommended update for all users.
 
 == Developer Information ==
