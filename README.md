@@ -144,6 +144,10 @@ dist/
     ├── includes/           # Core plugin classes
     ├── routes/            # REST API route definitions
     ├── docs/              # Documentation files
+    ├── swagger/           # 🆕 Swagger/OpenAPI implementation
+    │   ├── class-swagger-handler.php
+    │   ├── swagger-integration.md
+    │   └── test-swagger-integration.php
     ├── vendor/            # Production dependencies (Firebase JWT)
     ├── wp-authenticator.php
     ├── README.md
@@ -354,7 +358,7 @@ const { token, user } = await step3.json();
 
 ### Complete Documentation
 - **[Complete API Documentation](./API_Docs.md)** - All 20+ endpoints with request/response examples
-- **[Interactive Swagger UI](./docs/swagger-integration.md)** - 🆕 Live API testing and documentation
+- **[Interactive Swagger UI](./swagger/swagger-integration.md)** - 🆕 Live API testing and documentation
 - **[3-Step Registration Guide](./docs/3-step-registration.md)** - Detailed implementation guide
 - **[JWT Implementation Guide](./docs/jwt_implemention.md)** - JWT token management details
 - **[Token Management](./docs/token-management.md)** - Advanced token handling
@@ -362,14 +366,15 @@ const { token, user } = await step3.json();
 - **[React Native Integration](./docs/jwt_plugin_react_nativev.md)** - Mobile app integration guide
 
 ### 🚀 Interactive API Testing
-- **Swagger UI**: Access at `/wp-json/wp-auth/v1/docs` on your site
+- **Swagger UI**: Access at `/?wp_auth_swagger=ui` on your site
 - **Admin Dashboard**: WordPress Admin → Settings → API Docs
 - **OpenAPI Spec**: Available at `/wp-json/wp-auth/v1/swagger.json`
+- **Swagger Directory**: Complete implementation in `/swagger/` folder
 
 ### Additional Resources
 - **[Changelog](./CHANGELOG.md)** - Version history and updates
 - **[Test Scripts](./test-3-step-registration.php)** - Ready-to-use testing examples
-- **[Swagger Integration Test](./test-swagger-integration.php)** - 🆕 Validate Swagger setup
+- **[Swagger Integration Test](./swagger/test-swagger-integration.php)** - 🆕 Validate Swagger setup
 - **[Reorganization Summary](./docs/reorganization-summary.md)** - Plugin architecture overview
 
 ## � Use Cases

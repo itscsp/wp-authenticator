@@ -13,6 +13,7 @@ echo "📁 Copying plugin files..."
 cp -r includes/ dist/wp-authenticator/includes/
 cp -r routes/ dist/wp-authenticator/routes/
 cp -r docs/ dist/wp-authenticator/docs/
+cp -r swagger/ dist/wp-authenticator/swagger/
 cp wp-authenticator.php dist/wp-authenticator/
 cp README.md dist/wp-authenticator/
 cp CHANGELOG.md dist/wp-authenticator/
@@ -39,9 +40,9 @@ if [ -f "test-3-step-registration.php" ]; then
     cp test-3-step-registration.php dist/wp-authenticator/
 fi
 
-# Copy Swagger test files for reference
-if [ -f "test-swagger-integration.php" ]; then
-    cp test-swagger-integration.php dist/wp-authenticator/
+# Copy Swagger test files from swagger directory
+if [ -f "swagger/test-swagger-integration.php" ]; then
+    cp swagger/test-swagger-integration.php dist/wp-authenticator/swagger/
 fi
 
 # Install production dependencies

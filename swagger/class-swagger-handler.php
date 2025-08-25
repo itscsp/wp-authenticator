@@ -15,6 +15,108 @@ class WP_Auth_Swagger_Handler {
         add_action('rest_api_init', array($this, 'register_swagger_routes'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_swagger_assets'));
         add_action('admin_menu', array($this, 'add_swagger_admin_page'));
+        add_action('init', array($this, 'handle_swagger_ui_requests'));
+    }
+
+    /**
+     * Handle standalone Swagger UI requests
+     */
+    public function handle_swagger_ui_requests() {
+        if (isset($_GET['wp_auth_swagger']) && $_GET['wp_auth_swagger'] === 'ui') {
+            $this->serve_standalone_swagger_ui();
+        }
+    }
+
+    /**
+     * Serve standalone Swagger UI
+     */
+    private function serve_standalone_swagger_ui() {
+        $swagger_url = get_rest_url(null, 'wp-auth/v1/swagger.json');
+        
+        // Set headers and output HTML
+        if (!headers_sent()) {
+            header('Content-Type: text/html; charset=UTF-8');
+            header('Cache-Control: no-cache, no-store, must-revalidate');
+        }
+        
+        ?>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>WP Authenticator API Documentation</title>
+            <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui.css" />
+            <style>
+                html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }
+                *, *:before, *:after { box-sizing: inherit; }
+                body { margin: 0; background: #fafafa; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+                .swagger-ui .topbar { display: none; }
+                .info-container {
+                    padding: 20px;
+                    background: #fff;
+                    border-bottom: 1px solid #e8e8e8;
+                    margin-bottom: 0;
+                }
+                .info-container h1 { margin: 0 0 10px 0; color: #3b4151; }
+                .info-container p { margin: 5px 0; color: #666; }
+                .loading { text-align: center; padding: 50px; color: #666; }
+            </style>
+        </head>
+        <body>
+            <div class="info-container">
+                <h1>🚀 WP Authenticator API Documentation</h1>
+                <p>Interactive API documentation for the WP Authenticator plugin.</p>
+                <p><strong>Tip:</strong> Use the <code>/login</code> endpoint to get a JWT token, then click "Authorize" to test protected endpoints.</p>
+            </div>
+            <div id="swagger-ui">
+                <div class="loading">Loading API Documentation...</div>
+            </div>
+            
+            <script src="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-bundle.js" charset="UTF-8"></script>
+            <script src="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-standalone-preset.js" charset="UTF-8"></script>
+            <script>
+                window.onload = function() {
+                    try {
+                        console.log('Loading Swagger UI from: <?php echo esc_js($swagger_url); ?>');
+                        
+                        const ui = SwaggerUIBundle({
+                            url: '<?php echo esc_js($swagger_url); ?>',
+                            dom_id: '#swagger-ui',
+                            deepLinking: true,
+                            presets: [
+                                SwaggerUIBundle.presets.apis,
+                                SwaggerUIStandalonePreset
+                            ],
+                            plugins: [
+                                SwaggerUIBundle.plugins.DownloadUrl
+                            ],
+                            layout: 'StandaloneLayout',
+                            validatorUrl: null,
+                            docExpansion: 'list',
+                            defaultModelsExpandDepth: 1,
+                            defaultModelExpandDepth: 1,
+                            onComplete: function() {
+                                console.log('Swagger UI loaded successfully');
+                            },
+                            onFailure: function(error) {
+                                console.error('Swagger UI failed to load:', error);
+                                document.getElementById('swagger-ui').innerHTML = 
+                                    '<div style="padding: 20px; color: red;">Error loading API documentation. Please check the console for details.</div>';
+                            }
+                        });
+                        
+                    } catch (error) {
+                        console.error('Swagger UI initialization failed:', error);
+                        document.getElementById('swagger-ui').innerHTML = 
+                            '<div style="padding: 20px; color: red;">Error initializing Swagger UI: ' + error.message + '</div>';
+                    }
+                };
+            </script>
+        </body>
+        </html>
+        <?php
+        exit;
     }
 
     /**
@@ -28,10 +130,10 @@ class WP_Auth_Swagger_Handler {
             'permission_callback' => '__return_true',
         ));
 
-        // Swagger UI endpoint
+        // Swagger UI endpoint - modified to work better with WordPress
         register_rest_route('wp-auth/v1', '/docs', array(
             'methods' => 'GET',
-            'callback' => array($this, 'get_swagger_ui'),
+            'callback' => array($this, 'redirect_to_swagger_ui'),
             'permission_callback' => '__return_true',
         ));
     }
@@ -696,49 +798,123 @@ class WP_Auth_Swagger_Handler {
     }
 
     /**
+     * Redirect to standalone Swagger UI page
+     */
+    public function redirect_to_swagger_ui() {
+        $swagger_page_url = site_url('/?wp_auth_swagger=ui');
+        return new WP_REST_Response(array(
+            'message' => 'Redirecting to Swagger UI...',
+            'swagger_ui_url' => $swagger_page_url,
+            'instructions' => 'If you are not automatically redirected, visit: ' . $swagger_page_url
+        ), 302, array(
+            'Location' => $swagger_page_url
+        ));
+    }
+
+    /**
      * Serve Swagger UI HTML page
      */
     public function get_swagger_ui() {
         $swagger_url = rest_url('wp-auth/v1/swagger.json');
         
+        // Set proper headers
+        if (!headers_sent()) {
+            header('Content-Type: text/html; charset=UTF-8');
+        }
+        
+        // Output HTML directly and exit
         $html = '<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WP Authenticator API Documentation</title>
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui.css" />
     <style>
-        html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }
-        *, *:before, *:after { box-sizing: inherit; }
-        body { margin:0; background: #fafafa; }
-        .swagger-ui .topbar { display: none; }
+        html { 
+            box-sizing: border-box; 
+            overflow: -moz-scrollbars-vertical; 
+            overflow-y: scroll; 
+        }
+        *, *:before, *:after { 
+            box-sizing: inherit; 
+        }
+        body { 
+            margin: 0; 
+            background: #fafafa; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        .swagger-ui .topbar { 
+            display: none; 
+        }
+        .info-container {
+            padding: 20px;
+            background: #fff;
+            border-bottom: 1px solid #e8e8e8;
+            margin-bottom: 0;
+        }
+        .info-container h1 {
+            margin: 0 0 10px 0;
+            color: #3b4151;
+        }
+        .info-container p {
+            margin: 5px 0;
+            color: #666;
+        }
     </style>
 </head>
 <body>
+    <div class="info-container">
+        <h1>🚀 WP Authenticator API Documentation</h1>
+        <p>Interactive API documentation for the WP Authenticator plugin.</p>
+        <p><strong>Tip:</strong> Use the <code>/login</code> endpoint to get a JWT token, then click "Authorize" to test protected endpoints.</p>
+    </div>
     <div id="swagger-ui"></div>
-    <script src="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-bundle.js"></script>
-    <script src="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-standalone-preset.js"></script>
+    
+    <script src="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-bundle.js" charset="UTF-8"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-standalone-preset.js" charset="UTF-8"></script>
     <script>
         window.onload = function() {
-            const ui = SwaggerUIBundle({
-                url: "' . $swagger_url . '",
-                dom_id: "#swagger-ui",
-                deepLinking: true,
-                presets: [
-                    SwaggerUIBundle.presets.apis,
-                    SwaggerUIStandalonePreset
-                ],
-                plugins: [
-                    SwaggerUIBundle.plugins.DownloadUrl
-                ],
-                layout: "StandaloneLayout"
-            });
+            try {
+                const ui = SwaggerUIBundle({
+                    url: "' . $swagger_url . '",
+                    dom_id: "#swagger-ui",
+                    deepLinking: true,
+                    presets: [
+                        SwaggerUIBundle.presets.apis,
+                        SwaggerUIStandalonePreset
+                    ],
+                    plugins: [
+                        SwaggerUIBundle.plugins.DownloadUrl
+                    ],
+                    layout: "StandaloneLayout",
+                    validatorUrl: null,
+                    docExpansion: "list",
+                    defaultModelsExpandDepth: 1,
+                    defaultModelExpandDepth: 1
+                });
+                
+                // Add some custom styling after initialization
+                setTimeout(function() {
+                    const infoDiv = document.querySelector(".info");
+                    if (infoDiv) {
+                        infoDiv.style.marginTop = "0";
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                console.error("Swagger UI initialization failed:", error);
+                document.getElementById("swagger-ui").innerHTML = 
+                    "<div style=\"padding: 20px; color: red;\">Error loading Swagger UI. Please check console for details.</div>";
+            }
         };
     </script>
 </body>
 </html>';
 
-        return new WP_REST_Response($html, 200, array('Content-Type' => 'text/html'));
+        // For WordPress REST API, we need to properly handle HTML output
+        echo $html;
+        exit;
     }
 
     /**
@@ -759,12 +935,12 @@ class WP_Auth_Swagger_Handler {
      * Render admin page for Swagger documentation
      */
     public function swagger_admin_page() {
-        $swagger_url = rest_url('wp-auth/v1/docs');
+        $swagger_url = site_url('/?wp_auth_swagger=ui');
         echo '<div class="wrap">';
         echo '<h1>WP Authenticator API Documentation</h1>';
         echo '<p>Interactive API documentation for WP Authenticator endpoints.</p>';
-        echo '<p><a href="' . $swagger_url . '" target="_blank" class="button button-primary">Open API Documentation</a></p>';
-        echo '<iframe src="' . $swagger_url . '" style="width: 100%; height: 800px; border: 1px solid #ccc;"></iframe>';
+        echo '<p><a href="' . esc_url($swagger_url) . '" target="_blank" class="button button-primary">Open API Documentation</a></p>';
+        echo '<iframe src="' . esc_url($swagger_url) . '" style="width: 100%; height: 800px; border: 1px solid #ccc;"></iframe>';
         echo '</div>';
     }
 
