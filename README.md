@@ -410,7 +410,6 @@ php test-3-step-registration.php
 - **[GitHub Repository](https://github.com/itscsp/wp-authenticator)** - Source code and development
 - **[WordPress Plugin Directory](https://wordpress.org/plugins/wp-authenticator)** - Official plugin page
 - **[API Documentation](./API_Docs.md)** - Complete endpoint reference
-- **[Live Demo](https://demo.example.com)** - Try the plugin features
 
 ## 👨‍💻 Author
 
