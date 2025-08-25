@@ -39,6 +39,11 @@ if [ -f "test-3-step-registration.php" ]; then
     cp test-3-step-registration.php dist/wp-authenticator/
 fi
 
+# Copy Swagger test files for reference
+if [ -f "test-swagger-integration.php" ]; then
+    cp test-swagger-integration.php dist/wp-authenticator/
+fi
+
 # Install production dependencies
 echo "📦 Installing production dependencies..."
 cd dist/wp-authenticator

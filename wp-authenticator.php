@@ -29,6 +29,7 @@ require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-api-endpoints.php';
 require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-security-handler.php';
 require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-admin-settings.php';
 require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-otp-handler.php';
+require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-swagger-handler.php';
 require_once WP_AUTHENTICATOR_PLUGIN_PATH . 'includes/class-wp-authenticator.php';
 
 // Initialize the plugin

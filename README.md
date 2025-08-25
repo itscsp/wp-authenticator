@@ -65,6 +65,8 @@ WP Authenticator extends WordPress's default authentication capabilities by prov
 
 ### Developer Experience
 - **Organized Codebase** - Endpoints logically organized in subfolders (`auth/`, `registration/`, `otp/`, etc.)
+- **Interactive Swagger UI** - 🆕 Live API documentation and testing interface
+- **OpenAPI 3.0 Specification** - 🆕 Machine-readable API documentation
 - **Comprehensive Documentation** - Complete API documentation with examples
 - **Test Scripts** - Ready-to-use testing tools for development
 - **Backward Compatibility** - All existing integrations continue to work seamlessly
@@ -352,15 +354,22 @@ const { token, user } = await step3.json();
 
 ### Complete Documentation
 - **[Complete API Documentation](./API_Docs.md)** - All 20+ endpoints with request/response examples
+- **[Interactive Swagger UI](./docs/swagger-integration.md)** - 🆕 Live API testing and documentation
 - **[3-Step Registration Guide](./docs/3-step-registration.md)** - Detailed implementation guide
 - **[JWT Implementation Guide](./docs/jwt_implemention.md)** - JWT token management details
 - **[Token Management](./docs/token-management.md)** - Advanced token handling
 - **[Endpoint Organization](./docs/endpoint-organization.md)** - Codebase structure explanation
 - **[React Native Integration](./docs/jwt_plugin_react_nativev.md)** - Mobile app integration guide
 
+### 🚀 Interactive API Testing
+- **Swagger UI**: Access at `/wp-json/wp-auth/v1/docs` on your site
+- **Admin Dashboard**: WordPress Admin → Settings → API Docs
+- **OpenAPI Spec**: Available at `/wp-json/wp-auth/v1/swagger.json`
+
 ### Additional Resources
 - **[Changelog](./CHANGELOG.md)** - Version history and updates
 - **[Test Scripts](./test-3-step-registration.php)** - Ready-to-use testing examples
+- **[Swagger Integration Test](./test-swagger-integration.php)** - 🆕 Validate Swagger setup
 - **[Reorganization Summary](./docs/reorganization-summary.md)** - Plugin architecture overview
 
 ## � Use Cases
